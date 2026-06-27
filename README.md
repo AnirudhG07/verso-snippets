@@ -23,7 +23,6 @@ Adding this, gives you -
   style="width:100%;border:none;"
   loading="lazy"
 ></iframe>
-```
 
 ## Marking regions to convert to Html
 
@@ -68,6 +67,7 @@ Or run directly from the project root:
 ````bash
 ./make_demo.sh proof.lean
 ./make_demo.sh proof.lean --split
+```
 
 ## Requirements
 

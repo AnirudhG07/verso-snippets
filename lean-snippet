@@ -53,7 +53,15 @@ done
 if $SETUP; then
   echo "lean-snippet: setting up in $SNIPPETS_HOME ..."
   cd "$SNIPPETS_HOME"
-  lake build wrap-lean generate-snippet
+  lake build wrap-lean
+  echo "import VersoBlog
+open Verso Genre Blog
+#doc (Page) \"Scratch\" =>
+%%%
+%%%
+\`\`\`leanInit scratch
+\`\`\`" > verso-snippets/Snippet.lean
+  lake build generate-snippet
   echo "Setup complete. Run: lean-snippet your-file.lean"
   exit 0
 fi
@@ -72,11 +80,28 @@ fi
 # ── Build ─────────────────────────────────────────────────────────────────────
 cd "$SNIPPETS_HOME"
 
-echo "lean-snippet: building ..."
-lake build wrap-lean generate-snippet 2>&1 | grep -v "^info:\|^warning:\|^$" || true
+# Run a build step quietly; print full output and abort only on failure.
+build_step() {
+  local out rc
+  set +e
+  out="$(lake build "$@" 2>&1)"; rc=$?
+  set -e
+  if [[ $rc -ne 0 ]]; then
+    echo "$out"
+    echo "Error: 'lake build $*' failed" >&2
+    exit 1
+  fi
+  return 0
+}
+
+echo "lean-snippet: building wrap-lean ..."
+build_step wrap-lean
 
 echo "lean-snippet: wrapping $SCRATCH ..."
 .lake/build/bin/wrap-lean "$SCRATCH" > verso-snippets/Snippet.lean
+
+echo "lean-snippet: building generate-snippet ..."
+build_step generate-snippet
 
 echo "lean-snippet: generating site ..."
 .lake/build/bin/generate-snippet 2>&1 | grep -v "^$" || true
@@ -97,7 +122,7 @@ fi
 if [[ -n "$INDEX" ]]; then
   OUT="${BASE}.html"
   python3 extract_lean.py "$GENERATED_HTML" --index "$INDEX" --out "$SNIPPETS_HOME/$OUT" $NO_ENHANCE
-  cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
+  [[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
   echo "  → $USER_CWD/$OUT"
 
 elif $SPLIT; then
@@ -132,7 +157,9 @@ for n, group in enumerate(groups):
         cmd.append(no_enhance)
     subprocess.run(cmd, check=True, cwd=snippets_dir)
     import shutil
-    shutil.copy(os.path.join(snippets_dir, out), os.path.join(user_cwd, out))
+    src, dst = os.path.join(snippets_dir, out), os.path.join(user_cwd, out)
+    if os.path.abspath(src) != os.path.abspath(dst):
+        shutil.copy(src, dst)
     print(f'  → {user_cwd}/{out}')
 PYEOF
 
@@ -140,7 +167,7 @@ else
   OUT="${BASE}.html"
   python3 extract_lean.py "$GENERATED_HTML" \
     --out "$SNIPPETS_HOME/$OUT" $SELECTED_ARG $NO_ENHANCE
-  cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
+  [[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
   echo "  → $USER_CWD/$OUT"
 fi
 
