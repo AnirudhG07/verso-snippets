@@ -8,21 +8,20 @@ open Verso Genre Blog
 ```leanInit scratch
 ```
 ```lean scratch
-def hello (name : String) : String :=
-  s!"Hello, {name}!"
+def IsPrime (n : Nat) := 1 < n ∧ ∀ k, 1 < k → k < n → ¬ k ∣ n
 ```
 
 ```lean scratch
-#eval hello "world"
-```
-
-```lean scratch
-def fib : Nat → Nat
-  | 0 => 0
-  | 1 => 1
-  | n + 2 => fib n + fib (n + 1)
-```
-
-```lean scratch
-#eval fib 10
+/-- Every number larger than 1 has a prime factor -/
+theorem exists_prime_factor :
+    ∀ n, 1 < n → ∃ k, IsPrime k ∧ k ∣ n := by
+  intro n h1
+  -- Either `n` is prime...
+  by_cases hprime : IsPrime n
+  · grind [Nat.dvd_refl]
+  -- ... or it has a non-trivial divisor with a prime factor
+  · obtain ⟨k, _⟩ : ∃ k, 1 < k ∧ k < n ∧ k ∣ n := by
+      simp_all [IsPrime]
+    obtain ⟨p, _, _⟩ := exists_prime_factor k (by grind)
+    grind [Nat.dvd_trans]
 ```

@@ -11,6 +11,7 @@ Options:
   --match TEXT    Extract blocks whose plain text contains TEXT.
   --out FILE      Output file. Default: demo.html
   --list          List all blocks with their indices and plain text.
+  --no-enhance    Skip GitHub-style colors, copy button, and Try-it button.
 """
 
 import argparse
@@ -113,6 +114,142 @@ def extract_blocks_with_output(source: str, lean_blocks: list[str]) -> list[tupl
 
 
 # ---------------------------------------------------------------------------
+# Enhancement: GitHub-style colors + Copy + Try it! (from see.lean)
+# ---------------------------------------------------------------------------
+
+ENHANCE_CSS = """
+/* ── GitHub-style syntax colors (from see.lean) ── */
+:root {
+  --verso-code-keyword-color: #cf222e;
+  --verso-code-const-color:   #0550ae;
+  --verso-code-var-color:     #24292f;
+  --verso-code-color:         #24292f;
+}
+
+/* Code block container */
+code.hl.lean.block {
+  background-color: #f6f8fa;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #d0d7de;
+  position: relative;
+  line-height: 1.45;
+  font-size: 0.95em;
+  margin: 1.5em 0;
+  display: block;
+  /* inter-text (whitespace + comments) in muted green */
+  color: #22863a;
+  font-style: italic;
+}
+
+/* Tokens override the block's italic/green defaults */
+code.hl.lean.block .token {
+  font-style: normal !important;
+}
+code.hl.lean.block .keyword {
+  color: #cf222e !important;
+}
+code.hl.lean.block .const {
+  color: #0550ae !important;
+}
+code.hl.lean.block .var {
+  color: #24292f !important;
+}
+code.hl.lean.block .literal.string {
+  color: #0a3069 !important;
+}
+code.hl.lean.block .sort {
+  color: #953800 !important;
+  font-weight: 600 !important;
+}
+
+/* ── Action buttons (Copy / Try it!) ── */
+.code-block-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 8px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+code.hl.lean.block:hover .code-block-actions {
+  opacity: 1;
+}
+.try-it-button, .copy-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background-color: transparent !important;
+  border: 1px solid #1f2328 !important;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #24292f !important;
+  font-style: normal !important;
+  text-decoration: none;
+  font-family: sans-serif;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.copy-button { padding: 3px 6px; }
+.try-it-button svg, .copy-button svg {
+  fill: none !important;
+  stroke: currentColor;
+}
+.try-it-button:hover, .copy-button:hover {
+  background-color: #f3f4f6 !important;
+  border-color: #0969da !important;
+  color: #0969da !important;
+}
+"""
+
+ENHANCE_JS = """
+window.addEventListener('load', () => {
+  const COPY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const CHECK_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  const PLAY_ICON  = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="pointer-events:none"><path d="M8 5v14l11-7z"/></svg>';
+
+  document.querySelectorAll('code.hl.lean.block').forEach(block => {
+    const code = block.innerText;
+    const actions = document.createElement('div');
+    actions.className = 'code-block-actions';
+
+    // Copy button
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-button';
+    copyBtn.title = 'Copy to clipboard';
+    copyBtn.innerHTML = COPY_ICON;
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(code).then(() => {
+        copyBtn.innerHTML = CHECK_ICON;
+        setTimeout(() => { copyBtn.innerHTML = COPY_ICON; }, 2000);
+      });
+    });
+
+    // Try it! button — opens live.lean-lang.org
+    const header = 'import Lean\\nopen Lean Meta Elab Tactic Term Command\\n\\n';
+    const tryBtn = document.createElement('a');
+    tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(header + code);
+    tryBtn.target = '_blank';
+    tryBtn.className = 'try-it-button';
+    tryBtn.title = 'Open in Lean 4 Web Editor';
+    tryBtn.innerHTML = PLAY_ICON + '<span>Try it!</span>';
+
+    actions.appendChild(copyBtn);
+    actions.appendChild(tryBtn);
+    block.appendChild(actions);
+  });
+});
+"""
+
+
+# ---------------------------------------------------------------------------
 # Build self-contained HTML
 # ---------------------------------------------------------------------------
 
@@ -123,7 +260,6 @@ SNIPPET_TEMPLATE = """\
 <meta charset="utf-8">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css" type="text/css">
 <style>
-/* Force light background so Lean code is always readable */
 body {{
   background: #fff;
   color: #222;
@@ -131,26 +267,22 @@ body {{
   max-width: 860px;
   margin: 0 auto;
 }}
-.lean-snippet {{
-  font-family: monospace;
-}}
+.lean-snippet {{ font-family: monospace; }}
 {css}
+{enhance_css}
 </style>
 </head>
 <body>
 <div class="lean-snippet">
 {blocks}
 </div>
-<script>
-const _versoDocsJson = {docs_json};
-</script>
+<script>const _versoDocsJson = {docs_json};</script>
 <script src="{verso_data}/popper.js"></script>
 <script src="{verso_data}/tippy.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"
         integrity="sha384-zbcZAIxlvJtNE3Dp5nxLXdXtXyxwOdnILY1TDPVmKFhl4r4nSUG1r8bcFXGVa4Te"
         crossorigin="anonymous"></script>
 <script>
-// Serve the inlined docs JSON when Verso's JS fetches it
 const _origFetch = window.fetch;
 window.fetch = function(url, ...args) {{
   if (typeof url === 'string' && url.endsWith('-verso-docs.json')) {{
@@ -160,6 +292,7 @@ window.fetch = function(url, ...args) {{
 }};
 {scripts}
 </script>
+{enhance_js}
 </body>
 </html>
 """
@@ -171,6 +304,7 @@ def build_html(
     selected_pairs: list[tuple[str, str]],
     docs_json_str: str,
     verso_data_path: str,
+    enhance: bool = True,
 ) -> str:
     css = '\n'.join(css_blocks)
 
@@ -189,10 +323,12 @@ def build_html(
 
     return SNIPPET_TEMPLATE.format(
         css=css,
+        enhance_css=ENHANCE_CSS if enhance else '',
         blocks=blocks_html,
         docs_json=docs_json_str,
         scripts=combined_scripts,
         verso_data=verso_data_path,
+        enhance_js=f'<script>{ENHANCE_JS}</script>' if enhance else '',
     )
 
 
@@ -206,11 +342,13 @@ def main():
     parser.add_argument('--index', type=int, default=None,
                         help='Extract block at this 0-based index')
     parser.add_argument('--match', type=str, default=None,
-                        help='Extract blocks whose plain text contains this string')
+                        help='Extract blocks whose plain text contains TEXT')
     parser.add_argument('--out', type=str, default='demo.html',
                         help='Output file (default: demo.html)')
     parser.add_argument('--list', action='store_true',
                         help='List all blocks then exit')
+    parser.add_argument('--no-enhance', action='store_true',
+                        help='Skip GitHub-style colors, copy button, and Try-it button')
     args = parser.parse_args()
 
     html_path = os.path.realpath(args.html_file)
@@ -251,7 +389,7 @@ def main():
     else:
         selected = pairs
 
-    # Find -verso-docs.json by walking up from the HTML file
+    # Find -verso-docs.json
     search_dir = os.path.dirname(html_path)
     docs_candidate = None
     for _ in range(6):
@@ -281,13 +419,17 @@ def main():
     css_blocks = extract_style_blocks(source)
     script_blocks = extract_inline_scripts(source)
 
-    html_out = build_html(css_blocks, script_blocks, selected, docs_json_str, verso_data_path)
+    html_out = build_html(
+        css_blocks, script_blocks, selected,
+        docs_json_str, verso_data_path,
+        enhance=not args.no_enhance,
+    )
 
     with open(args.out, 'w', encoding='utf-8') as f:
         f.write(html_out)
 
-    n = len(selected)
-    print(f'Wrote {n} block(s) to {args.out}')
+    enhance_note = '' if args.no_enhance else ' (with colors + copy + try-it)'
+    print(f'Wrote {len(selected)} block(s) to {args.out}{enhance_note}')
 
 
 if __name__ == '__main__':
