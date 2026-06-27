@@ -130,7 +130,7 @@ ENHANCE_CSS = """
 /* Code block container */
 code.hl.lean.block {
   background-color: #f6f8fa;
-  padding: 1rem;
+  padding: 1rem 1rem 0.4rem 1rem;
   border-radius: 8px;
   border: 1px solid #d0d7de;
   position: relative;
@@ -141,6 +141,13 @@ code.hl.lean.block {
   /* inter-text (whitespace + comments) in muted green */
   color: #22863a;
   font-style: italic;
+}
+
+/* Allow long lines (code + comments) to wrap instead of overflowing */
+code.hl.lean.block {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Tokens override the block's italic/green defaults */
@@ -351,6 +358,8 @@ def main():
     parser.add_argument('html_file', help='Path to the generated index.html')
     parser.add_argument('--index', type=int, default=None,
                         help='Extract block at this 0-based index')
+    parser.add_argument('--indices', type=str, default=None,
+                        help='Comma-separated list of block indices to combine into one file')
     parser.add_argument('--match', type=str, default=None,
                         help='Extract blocks whose plain text contains TEXT')
     parser.add_argument('--out', type=str, default='demo.html',
@@ -388,7 +397,13 @@ def main():
             print(f'  [{i}]{has_output} {first_line}{suffix}')
         return
 
-    if args.index is not None:
+    if args.indices is not None:
+        idx_list = [int(x.strip()) for x in args.indices.split(',') if x.strip()]
+        selected = [pairs[i] for i in idx_list if i < len(pairs)]
+        if not selected:
+            print(f'Error: none of the indices {idx_list} are in range.', file=sys.stderr)
+            sys.exit(1)
+    elif args.index is not None:
         if args.index >= len(pairs):
             print(f'Error: index {args.index} out of range (0..{len(pairs)-1})', file=sys.stderr)
             sys.exit(1)

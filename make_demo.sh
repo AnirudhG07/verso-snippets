@@ -67,12 +67,32 @@ if [[ -n "$INDEX" ]]; then
   echo "Done! Open demo.html"
 
 elif $SPLIT; then
-  # One file per block
-  for i in $INDICES; do
-    OUT="demo-${i}.html"
-    python3 extract_lean.py "$GENERATED_HTML" --index "$i" --out "$OUT" $NO_ENHANCE
-    echo "  wrote $OUT"
-  done
+  # One file per #show region (group of consecutive shown blocks)
+  if [[ -f "$SELECTED" && "$(python3 -c "import json; print('groups' in json.load(open('$SELECTED')))")" == "True" ]]; then
+    # Use groups from selected.json: each group → one file
+    python3 - "$SELECTED" "$GENERATED_HTML" "$NO_ENHANCE" <<'PYEOF'
+import json, sys, os, subprocess
+sel = json.load(open(sys.argv[1]))
+groups = sel.get('groups', [[i] for i in sel['selected']])
+html = sys.argv[2]
+no_enhance = sys.argv[3]
+for n, group in enumerate(groups):
+    indices = ','.join(str(i) for i in group)
+    out = f'demo-{n}.html'
+    cmd = ['python3', 'extract_lean.py', html, '--indices', indices, '--out', out]
+    if no_enhance:
+        cmd.append(no_enhance)
+    subprocess.run(cmd, check=True)
+    print(f'  wrote {out}')
+PYEOF
+  else
+    # No groups: fall back to one file per block index
+    for i in $INDICES; do
+      OUT="demo-${i}.html"
+      python3 extract_lean.py "$GENERATED_HTML" --index "$i" --out "$OUT" $NO_ENHANCE
+      echo "  wrote $OUT"
+    done
+  fi
   echo "Done!"
 
 else
