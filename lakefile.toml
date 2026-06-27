@@ -9,7 +9,14 @@ rev = "v4.29.0"
 
 [[lean_lib]]
 name = "Snippet"
+srcDir = "verso-snippets"
 
 [[lean_exe]]
 name = "generate-snippet"
 root = "Main"
+srcDir = "verso-snippets"
+
+[[lean_exe]]
+name = "wrap-lean"
+root = "WrapLean"
+srcDir = "verso-snippets"

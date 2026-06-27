@@ -1,1 +1,19 @@
-.lake
+# Lean build artifacts
+.lake/
+*.olean
+*.ilean
+*.c
+
+# Verso generated site
+_site/
+
+# Lake manifest (pinned by lake update, not needed in source)
+lake-manifest.json
+
+# Generated intermediate files
+selected.json
+verso-snippets/Snippet.lean
+
+# Output HTML files (generated at root)
+/lean-code*.html
+/demo*.html

@@ -1,124 +1,145 @@
 #!/usr/bin/env bash
-# lean-snippet — generate highlighted Lean HTML from any directory.
+# lean-snippet — generate self-contained highlighted Lean HTML from any directory.
 #
 # Usage:
 #   lean-snippet [file.lean] [options]
 #
 # Options:
-#   --index N      Extract only block N
-#   --split        One file per #show region: demo-0.html, demo-1.html, ...
-#   --no-enhance   Skip GitHub colors / copy / Try-it buttons
-#   --out NAME     Output filename (default: demo.html)
-#   --setup        First-time setup: build the Verso project
+#   -o, --output NAME   Base name for output file(s) (default: lean-code)
+#   --split             One file per #show region: lean-code_1.html, lean-code_2.html, ...
+#   --index N           Extract only the N-th block (0-based) into {base}.html
+#   --no-enhance        Skip GitHub colors, copy button, and Try-it button
+#   --setup             First-time setup: build the Verso project
 #
 # Install (run once):
 #   ln -s /path/to/snippets/lean-snippet ~/bin/lean-snippet
 #   lean-snippet --setup
 #
 # Then from any directory:
-#   lean-snippet scratch.lean
+#   lean-snippet proof.lean
 #   lean-snippet proof.lean --split
+#   lean-snippet proof.lean -o auth-engine --split
 
 set -euo pipefail
 
-# Resolve the real location of this script even through symlinks
+# Resolve the real location of this script, following symlinks
 SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do SOURCE="$(readlink "$SOURCE")"; done
 SNIPPETS_HOME="$(cd "$(dirname "$SOURCE")" && pwd)"
 
 USER_CWD="$(pwd)"
 
-# ── Parse arguments ──────────────────────────────────────────────────────────
+# ── Parse arguments ───────────────────────────────────────────────────────────
 SCRATCH=""
-EXTRA_ARGS=()
-OUT="demo.html"
+BASE="lean-code"
 SPLIT=false
+INDEX=""
+NO_ENHANCE=""
 SETUP=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --setup)      SETUP=true; shift ;;
-    --split)      SPLIT=true; EXTRA_ARGS+=("--split"); shift ;;
-    --index)      EXTRA_ARGS+=("--index" "$2"); shift 2 ;;
-    --no-enhance) EXTRA_ARGS+=("--no-enhance"); shift ;;
-    --out)        OUT="$2"; shift 2 ;;
-    --*)          echo "Unknown option: $1" >&2; exit 1 ;;
-    *)            SCRATCH="$1"; shift ;;
+    --setup)         SETUP=true; shift ;;
+    -o|--output)     BASE="$2"; shift 2 ;;
+    --split)         SPLIT=true; shift ;;
+    --index)         INDEX="$2"; shift 2 ;;
+    --no-enhance)    NO_ENHANCE="--no-enhance"; shift ;;
+    --*)             echo "Unknown option: $1" >&2; exit 1 ;;
+    *)               SCRATCH="$1"; shift ;;
   esac
 done
 
-# ── Setup mode ───────────────────────────────────────────────────────────────
+# ── Setup mode ────────────────────────────────────────────────────────────────
 if $SETUP; then
-  echo "lean-snippet: setting up Verso project in $SNIPPETS_HOME ..."
+  echo "lean-snippet: setting up in $SNIPPETS_HOME ..."
   cd "$SNIPPETS_HOME"
-  lake build generate-snippet
+  lake build wrap-lean generate-snippet
   echo "Setup complete. Run: lean-snippet your-file.lean"
   exit 0
 fi
 
-# ── Normal mode ──────────────────────────────────────────────────────────────
-# Resolve scratch file path
+# ── Resolve input file ────────────────────────────────────────────────────────
 if [[ -z "$SCRATCH" ]]; then
-  # Look for scratch.lean in CWD, else use the one in SNIPPETS_HOME
   if [[ -f "$USER_CWD/scratch.lean" ]]; then
     SCRATCH="$USER_CWD/scratch.lean"
   else
     SCRATCH="$SNIPPETS_HOME/scratch.lean"
   fi
 fi
+[[ "$SCRATCH" != /* ]] && SCRATCH="$USER_CWD/$SCRATCH"
+[[ -f "$SCRATCH" ]] || { echo "Error: file not found: $SCRATCH" >&2; exit 1; }
 
-# Make absolute
-if [[ "$SCRATCH" != /* ]]; then
-  SCRATCH="$USER_CWD/$SCRATCH"
-fi
-
-if [[ ! -f "$SCRATCH" ]]; then
-  echo "Error: file not found: $SCRATCH" >&2
-  exit 1
-fi
-
-# ── Build in the snippets project ────────────────────────────────────────────
+# ── Build ─────────────────────────────────────────────────────────────────────
 cd "$SNIPPETS_HOME"
 
-echo "lean-snippet: wrapping $SCRATCH ..."
-python3 wrap_lean.py "$SCRATCH" > Snippet.lean
-
 echo "lean-snippet: building ..."
-lake build generate-snippet 2>&1 | grep -v "^info:\|^warning:\|^$" || true
+lake build wrap-lean generate-snippet 2>&1 | grep -v "^info:\|^warning:\|^$" || true
+
+echo "lean-snippet: wrapping $SCRATCH ..."
+.lake/build/bin/wrap-lean "$SCRATCH" > verso-snippets/Snippet.lean
 
 echo "lean-snippet: generating site ..."
 .lake/build/bin/generate-snippet 2>&1 | grep -v "^$" || true
 
-# ── Extract and copy output to user's CWD ────────────────────────────────────
 GENERATED_HTML="_site/index.html"
 [[ -f "$GENERATED_HTML" ]] || { echo "Error: site generation failed" >&2; exit 1; }
 
-SELECTED_ARG=""
-if [[ -f "selected.json" ]]; then
-  HAS_MARKERS=$(python3 -c "import json; print(json.load(open('selected.json')).get('has_markers', False))")
-  [[ "$HAS_MARKERS" == "True" ]] && SELECTED_ARG="--selected selected.json"
-fi
-
+# ── Extract ───────────────────────────────────────────────────────────────────
 echo "lean-snippet: extracting ..."
 
-if $SPLIT; then
-  # Collect which indices to split on
-  if [[ -n "$SELECTED_ARG" ]]; then
-    INDICES=$(python3 -c "import json; print(*json.load(open('selected.json'))['selected'])")
-  else
-    INDICES=$(python3 extract_lean.py "$GENERATED_HTML" --list 2>/dev/null \
-              | grep -oE '\[[0-9]+\]' | tr -d '[]' | tr '\n' ' ')
-  fi
-  for i in $INDICES; do
-    OUTFILE="${OUT%.html}-${i}.html"
-    python3 extract_lean.py "$GENERATED_HTML" --index "$i" \
-        --out "$SNIPPETS_HOME/$OUTFILE" "${EXTRA_ARGS[@]}" || true
-    cp "$SNIPPETS_HOME/$OUTFILE" "$USER_CWD/$OUTFILE"
-    echo "  → $USER_CWD/$OUTFILE"
-  done
+SELECTED_ARG=""
+SELECTED_JSON="$(dirname "$SCRATCH")/selected.json"
+if [[ -f "$SELECTED_JSON" ]]; then
+  HAS_MARKERS=$(python3 -c "import json; print(json.load(open('$SELECTED_JSON')).get('has_markers', False))")
+  [[ "$HAS_MARKERS" == "True" ]] && SELECTED_ARG="--selected $SELECTED_JSON"
+fi
+
+if [[ -n "$INDEX" ]]; then
+  OUT="${BASE}.html"
+  python3 extract_lean.py "$GENERATED_HTML" --index "$INDEX" --out "$SNIPPETS_HOME/$OUT" $NO_ENHANCE
+  cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
+  echo "  → $USER_CWD/$OUT"
+
+elif $SPLIT; then
+  python3 - "$SELECTED_ARG" "$GENERATED_HTML" "$BASE" "$NO_ENHANCE" "$SNIPPETS_HOME" "$USER_CWD" <<'PYEOF'
+import json, sys, subprocess, os
+
+selected_arg = sys.argv[1]
+html         = sys.argv[2]
+base         = sys.argv[3]
+no_enhance   = sys.argv[4]
+snippets_dir = sys.argv[5]
+user_cwd     = sys.argv[6]
+
+if selected_arg:
+    sel_file = selected_arg.split()[-1]  # "--selected selected.json" → "selected.json"
+    sel = json.load(open(os.path.join(snippets_dir, sel_file)))
+    groups = sel.get('groups', [[i] for i in sel['selected']])
+else:
+    # No markers: list all blocks and treat each as its own group
+    result = subprocess.run(
+        ['python3', 'extract_lean.py', html, '--list'],
+        capture_output=True, text=True, cwd=snippets_dir
+    )
+    import re
+    groups = [[int(m)] for m in re.findall(r'\[(\d+)\]', result.stdout)]
+
+for n, group in enumerate(groups):
+    indices = ','.join(str(i) for i in group)
+    out = f'{base}_{n+1}.html'
+    cmd = ['python3', 'extract_lean.py', html, '--indices', indices, '--out', out]
+    if no_enhance:
+        cmd.append(no_enhance)
+    subprocess.run(cmd, check=True, cwd=snippets_dir)
+    import shutil
+    shutil.copy(os.path.join(snippets_dir, out), os.path.join(user_cwd, out))
+    print(f'  → {user_cwd}/{out}')
+PYEOF
+
 else
+  OUT="${BASE}.html"
   python3 extract_lean.py "$GENERATED_HTML" \
-      --out "$SNIPPETS_HOME/$OUT" $SELECTED_ARG "${EXTRA_ARGS[@]}"
+    --out "$SNIPPETS_HOME/$OUT" $SELECTED_ARG $NO_ENHANCE
   cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
   echo "  → $USER_CWD/$OUT"
 fi

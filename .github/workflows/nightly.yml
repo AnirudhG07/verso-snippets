@@ -1,0 +1,125 @@
+name: Nightly Release
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+            binary: generate-snippet
+            archive: lean-snippet-linux.tar.gz
+          - os: macos-latest
+            name: macos
+            binary: generate-snippet
+            archive: lean-snippet-macos.tar.gz
+          - os: windows-latest
+            name: windows
+            binary: generate-snippet.exe
+            archive: lean-snippet-windows.zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install elan (Linux / macOS)
+        if: matrix.name != 'windows'
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf \
+            | sh -s -- --default-toolchain none -y
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install elan (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-pc-windows-msvc.zip" -OutFile elan.zip
+          Expand-Archive elan.zip -DestinationPath "$env:USERPROFILE\.elan-installer"
+          & "$env:USERPROFILE\.elan-installer\elan-init.exe" --default-toolchain none -y
+          "$env:USERPROFILE\.elan\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Cache Lake packages
+        uses: actions/cache@v4
+        with:
+          path: .lake
+          key: lake-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lakefile.toml') }}
+          restore-keys: |
+            lake-${{ runner.os }}-
+
+      - name: Build
+        run: lake build generate-snippet
+
+      - name: Package (Linux / macOS)
+        if: matrix.name != 'windows'
+        run: |
+          mkdir dist
+          cp .lake/build/bin/generate-snippet dist/
+          cp lean-snippet wrap_lean.py extract_lean.py dist/
+          tar -czf ${{ matrix.archive }} -C dist .
+
+      - name: Package (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Copy-Item .lake/build/bin/generate-snippet.exe dist/
+          Copy-Item wrap_lean.py, extract_lean.py dist/
+          Compress-Archive -Path dist/* -DestinationPath ${{ matrix.archive }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.archive }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Delete existing nightly tag/release
+        run: gh release delete nightly --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+      - name: Create nightly release
+        run: |
+          gh release create nightly \
+            --title "Nightly Build ($(date -u +%Y-%m-%d))" \
+            --notes "$(cat <<'EOF'
+          Automated nightly build from `master`.
+
+          ## Download
+
+          | Platform | Archive |
+          |----------|---------|
+          | Linux    | `lean-snippet-linux.tar.gz` |
+          | macOS    | `lean-snippet-macos.tar.gz` |
+          | Windows  | `lean-snippet-windows.zip` |
+
+          Each archive contains `generate-snippet` (the pre-built binary), `wrap_lean.py`, and `extract_lean.py`.
+          Place them in your cloned repo and skip the `lake build` step.
+          EOF
+          )" \
+            --prerelease \
+            lean-snippet-linux.tar.gz \
+            lean-snippet-macos.tar.gz \
+            lean-snippet-windows.zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
