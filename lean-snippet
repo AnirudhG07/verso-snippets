@@ -9,6 +9,8 @@
 #   --split             One file per #show region: lean-code_1.html, lean-code_2.html, ...
 #   --index N           Extract only the N-th block (0-based) into {base}.html
 #   --no-enhance        Skip GitHub colors, copy button, and Try-it button
+#   --multi-blocks      Split code into separate boxes on blank lines (default: one box)
+#   --raw-comments      Keep `-- comments` as-is (default: convert to /-- docs -/)
 #   --setup             First-time setup: build the Verso project
 #
 # Install (run once):
@@ -35,6 +37,8 @@ BASE="lean-code"
 SPLIT=false
 INDEX=""
 NO_ENHANCE=""
+MULTI_BLOCKS=""
+RAW_COMMENTS=""
 SETUP=false
 
 while [[ $# -gt 0 ]]; do
@@ -44,6 +48,8 @@ while [[ $# -gt 0 ]]; do
     --split)         SPLIT=true; shift ;;
     --index)         INDEX="$2"; shift 2 ;;
     --no-enhance)    NO_ENHANCE="--no-enhance"; shift ;;
+    --multi-blocks)  MULTI_BLOCKS="--multi-blocks"; shift ;;
+    --raw-comments)  RAW_COMMENTS="--raw-comments"; shift ;;
     --*)             echo "Unknown option: $1" >&2; exit 1 ;;
     *)               SCRATCH="$1"; shift ;;
   esac
@@ -98,7 +104,7 @@ echo "lean-snippet: building wrap-lean ..."
 build_step wrap-lean
 
 echo "lean-snippet: wrapping $SCRATCH ..."
-.lake/build/bin/wrap-lean "$SCRATCH" > verso-snippets/Snippet.lean
+.lake/build/bin/wrap-lean "$SCRATCH" $MULTI_BLOCKS $RAW_COMMENTS > verso-snippets/Snippet.lean
 
 echo "lean-snippet: building generate-snippet ..."
 build_step generate-snippet

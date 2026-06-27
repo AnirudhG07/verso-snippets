@@ -9,17 +9,13 @@ open Verso Genre Blog
 ```leanInit scratch
 ```
 ```lean scratch
-open Std.Do
+def a : Nat := 1
+```
 
-def sum_to_n : Int → Id Int := fun n ↦
-  (do
-      let mut total := (0 : Int)
-      let mut i := (1 : Int)
-      while i <= n do
-        total := total + i
-        i := i + (1 : Int)
-      return total)
+```lean scratch
+def b : Nat := 2
+```
 
-#eval sum_to_n 10
-
+```lean scratch
+theorem t : a + b = 3 := by decide
 ```

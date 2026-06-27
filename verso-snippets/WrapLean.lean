@@ -4,14 +4,17 @@ WrapLean: converts a plain `.lean` file into a minimal Verso `#doc` page.
 Prints the Verso-format page to stdout and writes `selected.json` alongside
 the input file (recording which blocks are inside `#show` regions).
 
-Usage: wrap-lean <input.lean>
+Usage: wrap-lean <input.lean> [--multi-blocks] [--raw-comments]
 
-Splitting rules (mirrors the original `wrap_lean.py`):
-  - Outside `#show` regions: blank lines separate chunks.
-  - Inside `#show`/`#endshow`: blank lines are preserved (one block per region).
+Splitting rules:
+  - Default: blank lines are preserved, so each shown region (or the whole file
+    when there are no markers) renders as ONE code block.
+  - `--multi-blocks`: blank lines split the code into separate blocks/boxes.
+  - `#show`/`#endshow` mark which regions are shown; code outside still compiles.
   - `import` lines are hoisted into the page header.
   - A run of `-- comment` lines immediately before a declaration becomes a
-    `/-- doc comment -/`, which survives elaboration and shows in the output.
+    `/-- doc comment -/`, which survives elaboration and shows in the output —
+    unless `--raw-comments` is given, in which case comments are left untouched.
 -/
 
 -- ── String helpers (stable across the Lean 4.29 String/Slice overhaul) ────────
@@ -38,6 +41,13 @@ private def isBlank (s : String) : Bool :=
     EOF), and there is nothing to render, so these are dropped. -/
 private def isLineCommentOnly (chunk : String) : Bool :=
   chunk.splitOn "\n" |>.all (fun l => isBlank l || hasPrefix (ltrim l) "--")
+
+/-- Drop leading and trailing blank lines from a chunk (internal blanks kept). -/
+private def stripBlankEdges (s : String) : String :=
+  let ls := s.splitOn "\n"
+  let ls := ls.dropWhile isBlank
+  let ls := (ls.reverse.dropWhile isBlank).reverse
+  String.intercalate "\n" ls
 
 -- ── Line classifiers ──────────────────────────────────────────────────────────
 
@@ -138,9 +148,13 @@ private def buildJson
 -- ── Main ──────────────────────────────────────────────────────────────────────
 
 def main (args : List String) : IO Unit := do
-  let path ← match args with
+  let multiBlocks := args.contains "--multi-blocks"
+  let rawComments := args.contains "--raw-comments"
+  let path ← match args.filter (fun a => !hasPrefix a "--") with
     | p :: _ => pure p
-    | []     => do IO.eprintln "Usage: wrap-lean <input.lean>"; IO.Process.exit 1
+    | []     => do
+        IO.eprintln "Usage: wrap-lean <input.lean> [--multi-blocks] [--raw-comments]"
+        IO.Process.exit 1
 
   let src ← IO.FS.readFile path
 
@@ -180,11 +194,11 @@ def main (args : List String) : IO Unit := do
     else
       depth := depth + depthChange line
       if isBlank line && depth ≤ 0 then
-        if inShow then
-          current := current.push ""        -- preserve blanks inside #show
-        else
-          chunks := pushChunk chunks current inShow groupId
+        if multiBlocks then
+          chunks := pushChunk chunks current inShow groupId   -- blank → new block
           current := #[]
+        else
+          current := current.push ""                          -- preserve (one block)
       else if !isHintLine line then
         current := current.push line
 
@@ -236,7 +250,8 @@ def main (args : List String) : IO Unit := do
     "```leanInit scratch\n```\n"
 
   let blocks := chunks.toList.map fun c =>
-    let processed := if c.2.isSome then preprocessComments c.1 else c.1
-    "```lean scratch\n" ++ processed ++ "\n```"
+    let processed :=
+      if c.2.isSome && !rawComments then preprocessComments c.1 else c.1
+    "```lean scratch\n" ++ stripBlankEdges processed ++ "\n```"
 
   IO.print (header ++ String.intercalate "\n\n" blocks ++ "\n")

@@ -43,12 +43,31 @@ theorem exists_prime_factor :
 - With `--split`, each marked region becomes its own file.
 - Without markers, the entire file is shown.
 
-_Note on comments:_ Verso drops bare `-- comment` lines during elaboration, so `lean-snippet` handles them for you:
+### One box or many — `--multi-blocks`
+
+By default the shown code renders as **a single continuous code box**, blank
+lines and all. If you'd rather have blank lines break the code into separate
+boxes (one per blank-line-separated group), pass `--multi-blocks`:
+
+```bash
+./lean-snippet proof.lean                 # one box (default)
+./lean-snippet proof.lean --multi-blocks  # a separate box per blank-line group
+```
+
+`--multi-blocks` controls boxes **within one HTML file**, whereas `--split`
+controls separate **files** per `#show` region — the two compose.
+
+### Comments — `--raw-comments`
+
+Verso drops bare `-- comment` lines during elaboration, so by default
+`lean-snippet` handles them for you:
 
 - A run of `-- comments` **immediately before a declaration** is converted to a `/-- ... -/` doc comment and shown attached to that declaration.
-- A block of **only** `-- comments` (with no declaration) is dropped — it cannot be rendered by Verso, and we manually don't do it either.
+- A block of **only** `-- comments` (with no declaration) is dropped — Verso cannot render it.
 
-For prose you always want to keep, prefer `/-- ... -/` or `/-! ... -/` comments directly.
+Pass `--raw-comments` to turn this off and keep `-- comments` exactly as written
+(Verso will then drop them). For prose you always want kept, prefer `/-- ... -/`
+or `/-! ... -/` comments directly.
 
 ## Requirements
 
@@ -104,6 +123,8 @@ lean-snippet proof.lean
 | `--split`                  | One file per `#show` region: `{base}_1.html`, `{base}_2.html`, ...  |
 | `--index N`                | Extract only the N-th block (0-based)                               |
 | `--no-enhance`             | Plain Verso styling — no GitHub colors, copy button, or Try-it link |
+| `--multi-blocks`           | Split code into separate boxes on blank lines (default: one box)    |
+| `--raw-comments`           | Keep `-- comments` as-is (default: convert to `/-- docs -/`)        |
 | `--setup`                  | First-time build of the Verso project (`lean-snippet` only)         |
 
 ## How it works
