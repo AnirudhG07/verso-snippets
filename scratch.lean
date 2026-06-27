@@ -1,5 +1,7 @@
+-- helper needed to compile, not shown
 def IsPrime (n : Nat) := 1 < n ∧ ∀ k, 1 < k → k < n → ¬ k ∣ n
 
+-- #show
 /-- Every number larger than 1 has a prime factor -/
 theorem exists_prime_factor :
     ∀ n, 1 < n → ∃ k, IsPrime k ∧ k ∣ n := by
@@ -12,3 +14,4 @@ theorem exists_prime_factor :
       simp_all [IsPrime]
     obtain ⟨p, _, _⟩ := exists_prime_factor k (by grind)
     grind [Nat.dvd_trans]
+-- #endshow

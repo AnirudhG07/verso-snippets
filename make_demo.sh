@@ -1,15 +1,36 @@
 #!/usr/bin/env bash
-# Usage: ./make_demo.sh [scratch.lean]
-# Converts your plain Lean code into highlighted HTML with hover tooltips.
+# Usage: ./make_demo.sh [options] [scratch.lean]
+#
+# Options:
+#   --index N    Extract only block N into demo.html
+#   --split      Write one file per block: demo-0.html, demo-1.html, ...
+#   --no-enhance Skip GitHub colors, copy button, Try-it button
+#
+# Mark regions in scratch.lean with:
+#   -- #show / -- #endshow
+# Code outside markers compiles but won't appear in output.
 set -euo pipefail
 
-SCRATCH="${1:-scratch.lean}"
+SCRATCH="scratch.lean"
+INDEX=""
+SPLIT=false
+NO_ENHANCE=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --index)   INDEX="$2"; shift 2 ;;
+    --split)   SPLIT=true; shift ;;
+    --no-enhance) NO_ENHANCE="--no-enhance"; shift ;;
+    --*)       echo "Unknown option: $1" >&2; exit 1 ;;
+    *)         SCRATCH="$1"; shift ;;
+  esac
+done
+
 GENERATED_HTML="_site/index.html"
-OUT="demo.html"
+SELECTED="selected.json"
 
 if [[ ! -f "$SCRATCH" ]]; then
-  echo "Error: $SCRATCH not found." >&2
-  exit 1
+  echo "Error: $SCRATCH not found." >&2; exit 1
 fi
 
 echo "→ Wrapping $SCRATCH into Snippet.lean ..."
@@ -21,12 +42,45 @@ lake build generate-snippet
 echo "→ Generating site ..."
 .lake/build/bin/generate-snippet
 
-if [[ ! -f "$GENERATED_HTML" ]]; then
-  echo "Error: expected HTML not found at $GENERATED_HTML" >&2
-  ls _site/ >&2
-  exit 1
-fi
+[[ -f "$GENERATED_HTML" ]] || { echo "Error: $GENERATED_HTML not found"; ls _site/; exit 1; }
 
 echo "→ Extracting HTML blocks ..."
-python3 extract_lean.py "$GENERATED_HTML" --out "$OUT"
-echo "Done! Open $OUT in your browser."
+
+# Resolve which block indices to work with
+if [[ -f "$SELECTED" ]]; then
+  HAS_MARKERS=$(python3 -c "import json; print(json.load(open('$SELECTED')).get('has_markers', False))")
+  if [[ "$HAS_MARKERS" == "True" ]]; then
+    INDICES=$(python3 -c "import json; print(*json.load(open('$SELECTED'))['selected'])")
+  else
+    # No markers: all blocks
+    INDICES=$(python3 extract_lean.py "$GENERATED_HTML" --list 2>/dev/null \
+              | grep -oP '(?<=\[)\d+(?=\])' | tr '\n' ' ')
+  fi
+else
+  INDICES=$(python3 extract_lean.py "$GENERATED_HTML" --list 2>/dev/null \
+            | grep -oP '(?<=\[)\d+(?=\])' | tr '\n' ' ')
+fi
+
+if [[ -n "$INDEX" ]]; then
+  # Single block requested explicitly
+  python3 extract_lean.py "$GENERATED_HTML" --index "$INDEX" --out demo.html $NO_ENHANCE
+  echo "Done! Open demo.html"
+
+elif $SPLIT; then
+  # One file per block
+  for i in $INDICES; do
+    OUT="demo-${i}.html"
+    python3 extract_lean.py "$GENERATED_HTML" --index "$i" --out "$OUT" $NO_ENHANCE
+    echo "  wrote $OUT"
+  done
+  echo "Done!"
+
+else
+  # All selected blocks in one file (default)
+  SELECTED_ARG=""
+  if [[ -f "$SELECTED" && "$HAS_MARKERS" == "True" ]]; then
+    SELECTED_ARG="--selected $SELECTED"
+  fi
+  python3 extract_lean.py "$GENERATED_HTML" --out demo.html $SELECTED_ARG $NO_ENHANCE
+  echo "Done! Open demo.html"
+fi

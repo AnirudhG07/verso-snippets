@@ -15,6 +15,7 @@ Options:
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -277,8 +278,8 @@ body {{
 {blocks}
 </div>
 <script>const _versoDocsJson = {docs_json};</script>
-<script src="{verso_data}/popper.js"></script>
-<script src="{verso_data}/tippy.js"></script>
+<script>{popper_js}</script>
+<script>{tippy_js}</script>
 <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"
         integrity="sha384-zbcZAIxlvJtNE3Dp5nxLXdXtXyxwOdnILY1TDPVmKFhl4r4nSUG1r8bcFXGVa4Te"
         crossorigin="anonymous"></script>
@@ -303,7 +304,7 @@ def build_html(
     script_blocks: list[str],
     selected_pairs: list[tuple[str, str]],
     docs_json_str: str,
-    verso_data_path: str,
+    verso_data_dir: str,
     enhance: bool = True,
 ) -> str:
     css = '\n'.join(css_blocks)
@@ -321,13 +322,22 @@ def build_html(
         if 'querySelector' in s or 'tippy' in s.lower() or 'onload' in s.lower()
     )
 
+    # Inline popper.js and tippy.js so the output file is self-contained
+    def read_js(name: str) -> str:
+        path = os.path.join(verso_data_dir, name)
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return f.read()
+        return f'/* {name} not found at {path} */'
+
     return SNIPPET_TEMPLATE.format(
         css=css,
         enhance_css=ENHANCE_CSS if enhance else '',
         blocks=blocks_html,
         docs_json=docs_json_str,
+        popper_js=read_js('popper.js'),
+        tippy_js=read_js('tippy.js'),
         scripts=combined_scripts,
-        verso_data=verso_data_path,
         enhance_js=f'<script>{ENHANCE_JS}</script>' if enhance else '',
     )
 
@@ -349,6 +359,8 @@ def main():
                         help='List all blocks then exit')
     parser.add_argument('--no-enhance', action='store_true',
                         help='Skip GitHub-style colors, copy button, and Try-it button')
+    parser.add_argument('--selected', type=str, default=None,
+                        help='JSON file with {"selected":[...]} block indices to include')
     args = parser.parse_args()
 
     html_path = os.path.realpath(args.html_file)
@@ -386,6 +398,14 @@ def main():
         if not selected:
             print(f'No blocks matched "{args.match}".', file=sys.stderr)
             sys.exit(1)
+    elif args.selected is not None:
+        with open(args.selected) as f:
+            sel_data = json.load(f)
+        indices = sel_data.get('selected', [])
+        selected = [pairs[i] for i in indices if i < len(pairs)]
+        if not selected:
+            print('Warning: --selected file resulted in no blocks; showing all.', file=sys.stderr)
+            selected = pairs
     else:
         selected = pairs
 
@@ -407,21 +427,12 @@ def main():
     site_root = os.path.dirname(docs_candidate) if docs_candidate else os.path.dirname(html_path)
     verso_data_dir = os.path.join(site_root, '-verso-data')
 
-    out_dir = os.path.dirname(os.path.realpath(args.out)) if os.path.dirname(args.out) else os.getcwd()
-    if os.path.exists(verso_data_dir):
-        try:
-            verso_data_path = os.path.relpath(verso_data_dir, out_dir)
-        except ValueError:
-            verso_data_path = verso_data_dir
-    else:
-        verso_data_path = '_site/-verso-data'
-
     css_blocks = extract_style_blocks(source)
     script_blocks = extract_inline_scripts(source)
 
     html_out = build_html(
         css_blocks, script_blocks, selected,
-        docs_json_str, verso_data_path,
+        docs_json_str, verso_data_dir,
         enhance=not args.no_enhance,
     )
 

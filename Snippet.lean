@@ -8,6 +8,7 @@ open Verso Genre Blog
 ```leanInit scratch
 ```
 ```lean scratch
+-- helper needed to compile, not shown
 def IsPrime (n : Nat) := 1 < n ∧ ∀ k, 1 < k → k < n → ¬ k ∣ n
 ```
 
