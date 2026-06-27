@@ -18,6 +18,8 @@ A single `.html` file you can open in a browser or embed anywhere via `<iframe>`
 
 Check out the demo's on the webpage [here](https://anirudhg07.github.io/src/projects/verso-snippets.html) to visualize them.
 
+<img width="815" height="429" alt="image" src="https://github.com/user-attachments/assets/1bf0b33c-b913-4fc5-ad96-ea74f6aab96c" />
+
 ## Marking regions to convert to Html
 
 You may want the whole Lean4 code or just a small portion of the Lean code into Html. Verso snippets covers it all.
