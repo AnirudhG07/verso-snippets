@@ -16,13 +16,7 @@ A single `.html` file you can open in a browser or embed anywhere via `<iframe>`
 ></iframe>
 ```
 
-Adding this, gives you -
-
-<iframe
-  src="/demo/demo-1.html"
-  style="width:100%;border:none;"
-  loading="lazy"
-></iframe>
+Check out the demo's on the webpage [here](https://anirudhg07.github.io/src/projects/verso-snippets.html) to visualize them.
 
 ## Marking regions to convert to Html
 
@@ -49,43 +43,57 @@ theorem exists_prime_factor :
 - With `--split`, each marked region becomes its own file.
 - Without markers, the entire file is shown.
 
-_Note:_ If you want comments to come, use `/- ... -/` or `/-- ... -/` comments, instead of `-- comment` style. This is because Verso removes the latter from the generated code.
+_Note on comments:_ Verso drops bare `-- comment` lines during elaboration, so `lean-snippet` handles them for you:
 
-## Usage
+- A run of `-- comments` **immediately before a declaration** is converted to a `/-- ... -/` doc comment and shown attached to that declaration.
+- A block of **only** `-- comments` (with no declaration) is dropped — it cannot be rendered by Verso, and we manually don't do it either.
 
-Write your Lean code in any `proof.lean` file, then run:
-
-```bash
-lean-snippet proof.lean               # → lean-code.html
-lean-snippet proof.lean --split       # → lean-code_1.html, lean-code_2.html, ...
-lean-snippet proof.lean -o auth       # → auth.html
-lean-snippet proof.lean -o auth --split  # → auth_1.html, auth_2.html, ...
-```
-
-Or run directly from the project root:
-
-````bash
-./make_demo.sh proof.lean
-./make_demo.sh proof.lean --split
-```
+For prose you always want to keep, prefer `/-- ... -/` or `/-! ... -/` comments directly.
 
 ## Requirements
 
 - **Lean 4** (`leanprover/lean4:v4.29.0`) via [elan](https://github.com/leanprover/elan)
-- **Python 3**
+- **Python 3** (used by the HTML extractor)
 
 ## Setup
 
+The whole tool is driven by one shell script: **`lean-snippet`**. Clone the repo
+and run the one-time setup, which downloads Verso and builds the binaries:
+
 ```bash
 git clone https://github.com/AnirudhG07/verso-snippets
-cd lean-snippet
-lake build generate-snippet   # downloads Verso, ~5 min first time
-````
+cd verso-snippets
+./lean-snippet --setup
+```
 
-Optionally install globally so you can use it from any directory:
+## Usage
+
+Write your Lean code in any `.lean` file, then point the script at it:
+
+```bash
+./lean-snippet proof.lean                 # → lean-code.html
+./lean-snippet proof.lean --split         # → lean-code_1.html, lean-code_2.html, ...
+./lean-snippet proof.lean -o auth         # → auth.html
+./lean-snippet proof.lean -o auth --split # → auth_1.html, auth_2.html, ...
+```
+
+Run with no file and it uses `scratch.lean` from the current directory (or the
+repo's `scratch.lean` as a fallback) — handy for quick experiments:
+
+```bash
+./lean-snippet                            # wraps scratch.lean → lean-code.html
+```
+
+The output `.html` is written both into the repo and into your current
+directory, so you can run the script from anywhere your `.lean` file lives.
+
+### Install globally (optional)
+
+Symlink it onto your `PATH` so you can drop the `./` and call it from any directory:
 
 ```bash
 ln -s "$PWD/lean-snippet" ~/bin/lean-snippet
+lean-snippet proof.lean
 ```
 
 ## Options
@@ -100,9 +108,11 @@ ln -s "$PWD/lean-snippet" ~/bin/lean-snippet
 
 ## How it works
 
-1. `wrap_lean.py` converts your `.lean` file into a minimal Verso `#doc` page, hoisting `import` lines and converting top-level `-- comments` before declarations to `/-- doc comments -/` (which survive elaboration).
-2. `lake build` + the generated `generate-snippet` binary runs Verso, which elaborates the Lean code and produces `_site/index.html` with full hover data.
-3. `extract_lean.py` pulls out the highlighted code blocks, inlines all JS/CSS (including Verso's tippy.js/popper.js), and writes a self-contained HTML file.
+The `lean-snippet` script chains three steps:
+
+1. **`wrap-lean`** (a Lean 4 binary, source in `verso-snippets/WrapLean.lean`) converts your `.lean` file into a minimal Verso `#doc` page — hoisting `import` lines, honoring `#show`/`#endshow` markers, and converting `-- comments` immediately before a declaration into `/-- doc comments -/` (which survive elaboration).
+2. **`generate-snippet`** (`verso-snippets/Main.lean`) runs Verso, which elaborates the Lean code and produces `_site/index.html` with full hover data.
+3. **`extract_lean.py`** pulls out the highlighted code blocks, inlines all JS/CSS (including Verso's tippy.js/popper.js), and writes the self-contained HTML file.
 
 ## Acknowledgements
 
