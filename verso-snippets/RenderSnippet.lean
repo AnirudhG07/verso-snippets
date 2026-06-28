@@ -53,6 +53,14 @@ def enhanceCss : String := "
   --verso-code-var-color:     #24292f;
   --verso-code-color:         #24292f;
 }
+/* Comments (Verso gives them no color of their own) — GitHub green. */
+code.hl.lean.block .doc-comment,
+code.hl.lean.block .inter-text {
+  color: #22863a;
+  font-style: italic;
+}
+/* Keep real tokens upright even though inter-text above is italic. */
+code.hl.lean.block .token:not(.doc-comment) { font-style: normal; }
 code.hl.lean.block {
   background-color: #f6f8fa;
   padding: 1rem;

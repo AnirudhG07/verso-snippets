@@ -68,7 +68,8 @@ output and the goal state at each tactic are captured too, and appear on hover.
 ## Requirements
 
 - **Lean 4** (`leanprover/lean4:v4.29.0`) via [elan](https://github.com/leanprover/elan)
-- **Python 3** (used by the HTML extractor)
+
+That's it — the whole pipeline is Lean (Verso + SubVerso). No Python, no Node.
 
 ## Setup
 
@@ -86,17 +87,17 @@ cd verso-snippets
 Write your Lean code in any `.lean` file, then point the script at it:
 
 ```bash
-./lean-snippet proof.lean                 # → lean-code.html
-./lean-snippet proof.lean --split         # → lean-code_1.html, lean-code_2.html, ...
-./lean-snippet proof.lean -o auth         # → auth.html
-./lean-snippet proof.lean -o auth --split # → auth_1.html, auth_2.html, ...
+./lean-snippet proof.lean                    # → lean-code.html (whole file, one box)
+./lean-snippet proof.lean -o auth            # → auth.html
+./lean-snippet proof.lean --multi-blocks     # one box per top-level command
+./lean-snippet proof.lean --anchor main      # only the -- ANCHOR: main region
 ```
 
 Run with no file and it uses `scratch.lean` from the current directory (or the
 repo's `scratch.lean` as a fallback) — handy for quick experiments:
 
 ```bash
-./lean-snippet                            # wraps scratch.lean → lean-code.html
+./lean-snippet                               # converts scratch.lean → lean-code.html
 ```
 
 The output `.html` is written both into the repo and into your current
@@ -115,21 +116,21 @@ lean-snippet proof.lean
 
 | Flag                       | Description                                                         |
 | -------------------------- | ------------------------------------------------------------------- |
-| `-o NAME`, `--output NAME` | Base name for output files (default: `lean-code`)                   |
-| `--split`                  | One file per `#show` region: `{base}_1.html`, `{base}_2.html`, ...  |
-| `--index N`                | Extract only the N-th block (0-based)                               |
-| `--no-enhance`             | Plain Verso styling — no GitHub colors, copy button, or Try-it link |
-| `--multi-blocks`           | Split code into separate boxes on blank lines (default: one box)    |
-| `--raw-comments`           | Keep `-- comments` as-is (default: convert to `/-- docs -/`)        |
-| `--setup`                  | First-time build of the Verso project (`lean-snippet` only)         |
+| `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)                |
+| `--multi-blocks`           | One box per top-level command (default: a single box)              |
+| `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region      |
+| `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button      |
+| `--setup`                  | First-time build of the renderer                                    |
 
 ## How it works
 
-The `lean-snippet` script chains three steps:
+The `lean-snippet` script chains three steps — all Lean, no scraping:
 
-1. **`wrap-lean`** (a Lean 4 binary, source in `verso-snippets/WrapLean.lean`) converts your `.lean` file into a minimal Verso `#doc` page — hoisting `import` lines, honoring `#show`/`#endshow` markers, and converting `-- comments` immediately before a declaration into `/-- doc comments -/` (which survive elaboration).
-2. **`generate-snippet`** (`verso-snippets/Main.lean`) runs Verso, which elaborates the Lean code and produces `_site/index.html` with full hover data.
-3. **`extract_lean.py`** pulls out the highlighted code blocks, inlines all JS/CSS (including Verso's tippy.js/popper.js), and writes the self-contained HTML file.
+1. **Highlight** — your `.lean` becomes the `Snippet` module, and `lake build Snippet:highlighted` runs [SubVerso](https://github.com/leanprover/subverso), which drives the Lean compiler to emit highlighted **JSON** (tokens, hovers, `#eval` output, proof states). No Verso document is built.
+2. **Render** — `render-snippet` (`verso-snippets/RenderSnippet.lean`) reads that JSON and uses Verso's own HTML library (`Verso.Code.Highlighted`) to produce the markup, CSS, and JS.
+3. **Assemble** — it inlines Verso's `highlightingStyle`/`highlightingJs` plus the vendored `popper`/`tippy` so the single output file is fully self-contained.
+
+Because `render-snippet` is input-independent it is built once; only the cheap highlight step re-runs per file. And because SubVerso supports every Lean release back to 4.0.0, old snippets keep rendering as Lean and Verso move forward.
 
 ## Acknowledgements
 
