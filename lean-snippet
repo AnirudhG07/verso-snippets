@@ -1,26 +1,24 @@
 #!/usr/bin/env bash
-# lean-snippet — generate self-contained highlighted Lean HTML from any directory.
+# lean-snippet — generate a self-contained highlighted Lean HTML snippet.
 #
 # Usage:
 #   lean-snippet [file.lean] [options]
 #
 # Options:
-#   -o, --output NAME   Base name for output file(s) (default: lean-code)
-#   --split             One file per #show region: lean-code_1.html, lean-code_2.html, ...
-#   --index N           Extract only the N-th block (0-based) into {base}.html
-#   --no-enhance        Skip GitHub colors, copy button, and Try-it button
-#   --multi-blocks      Split code into separate boxes on blank lines (default: one box)
-#   --raw-comments      Keep `-- comments` as-is (default: convert to /-- docs -/)
-#   --setup             First-time setup: build the Verso project
+#   -o, --output NAME   Base name for the output file (default: lean-code)
+#   --multi-blocks      One box per top-level command (default: a single box)
+#   --anchor NAME       Show only the region marked -- ANCHOR: NAME / -- ANCHOR_END: NAME
+#   --no-enhance        Skip GitHub colors + Copy / Try-it buttons
+#   --setup             First-time setup: build the renderer
+#
+# Pipeline (all Lean / SubVerso — no Python, no HTML scraping):
+#   1. copy your file into the `Snippet` module
+#   2. `lake build Snippet:highlighted`  → SubVerso highlights it to JSON
+#   3. `render-snippet`                  → Verso renders the JSON to one HTML file
 #
 # Install (run once):
 #   ln -s /path/to/snippets/lean-snippet ~/bin/lean-snippet
 #   lean-snippet --setup
-#
-# Then from any directory:
-#   lean-snippet proof.lean
-#   lean-snippet proof.lean --split
-#   lean-snippet proof.lean -o auth-engine --split
 
 set -euo pipefail
 
@@ -28,63 +26,27 @@ set -euo pipefail
 SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do SOURCE="$(readlink "$SOURCE")"; done
 SNIPPETS_HOME="$(cd "$(dirname "$SOURCE")" && pwd)"
-
 USER_CWD="$(pwd)"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 SCRATCH=""
 BASE="lean-code"
-SPLIT=false
-INDEX=""
-NO_ENHANCE=""
 MULTI_BLOCKS=""
-RAW_COMMENTS=""
+NO_ENHANCE=""
+ANCHOR=""
 SETUP=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --setup)         SETUP=true; shift ;;
     -o|--output)     BASE="$2"; shift 2 ;;
-    --split)         SPLIT=true; shift ;;
-    --index)         INDEX="$2"; shift 2 ;;
-    --no-enhance)    NO_ENHANCE="--no-enhance"; shift ;;
     --multi-blocks)  MULTI_BLOCKS="--multi-blocks"; shift ;;
-    --raw-comments)  RAW_COMMENTS="--raw-comments"; shift ;;
+    --no-enhance)    NO_ENHANCE="--no-enhance"; shift ;;
+    --anchor)        ANCHOR="--anchor $2"; shift 2 ;;
     --*)             echo "Unknown option: $1" >&2; exit 1 ;;
     *)               SCRATCH="$1"; shift ;;
   esac
 done
-
-# ── Setup mode ────────────────────────────────────────────────────────────────
-if $SETUP; then
-  echo "lean-snippet: setting up in $SNIPPETS_HOME ..."
-  cd "$SNIPPETS_HOME"
-  lake build wrap-lean
-  echo "import VersoBlog
-open Verso Genre Blog
-#doc (Page) \"Scratch\" =>
-%%%
-%%%
-\`\`\`leanInit scratch
-\`\`\`" > verso-snippets/Snippet.lean
-  lake build generate-snippet
-  echo "Setup complete. Run: lean-snippet your-file.lean"
-  exit 0
-fi
-
-# ── Resolve input file ────────────────────────────────────────────────────────
-if [[ -z "$SCRATCH" ]]; then
-  if [[ -f "$USER_CWD/scratch.lean" ]]; then
-    SCRATCH="$USER_CWD/scratch.lean"
-  else
-    SCRATCH="$SNIPPETS_HOME/scratch.lean"
-  fi
-fi
-[[ "$SCRATCH" != /* ]] && SCRATCH="$USER_CWD/$SCRATCH"
-[[ -f "$SCRATCH" ]] || { echo "Error: file not found: $SCRATCH" >&2; exit 1; }
-
-# ── Build ─────────────────────────────────────────────────────────────────────
-cd "$SNIPPETS_HOME"
 
 # Run a build step quietly; print full output and abort only on failure.
 build_step() {
@@ -100,81 +62,44 @@ build_step() {
   return 0
 }
 
-echo "lean-snippet: building wrap-lean ..."
-build_step wrap-lean
-
-echo "lean-snippet: wrapping $SCRATCH ..."
-.lake/build/bin/wrap-lean "$SCRATCH" $MULTI_BLOCKS $RAW_COMMENTS > verso-snippets/Snippet.lean
-
-echo "lean-snippet: building generate-snippet ..."
-build_step generate-snippet
-
-echo "lean-snippet: generating site ..."
-.lake/build/bin/generate-snippet 2>&1 | grep -v "^$" || true
-
-GENERATED_HTML="_site/index.html"
-[[ -f "$GENERATED_HTML" ]] || { echo "Error: site generation failed" >&2; exit 1; }
-
-# ── Extract ───────────────────────────────────────────────────────────────────
-echo "lean-snippet: extracting ..."
-
-SELECTED_ARG=""
-SELECTED_JSON="$(dirname "$SCRATCH")/selected.json"
-if [[ -f "$SELECTED_JSON" ]]; then
-  HAS_MARKERS=$(python3 -c "import json; print(json.load(open('$SELECTED_JSON')).get('has_markers', False))")
-  [[ "$HAS_MARKERS" == "True" ]] && SELECTED_ARG="--selected $SELECTED_JSON"
+# ── Setup mode ────────────────────────────────────────────────────────────────
+if $SETUP; then
+  echo "lean-snippet: setting up in $SNIPPETS_HOME ..."
+  cd "$SNIPPETS_HOME"
+  build_step render-snippet
+  echo "Setup complete. Run: lean-snippet your-file.lean"
+  exit 0
 fi
 
-if [[ -n "$INDEX" ]]; then
-  OUT="${BASE}.html"
-  python3 extract_lean.py "$GENERATED_HTML" --index "$INDEX" --out "$SNIPPETS_HOME/$OUT" $NO_ENHANCE
-  [[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
-  echo "  → $USER_CWD/$OUT"
-
-elif $SPLIT; then
-  python3 - "$SELECTED_ARG" "$GENERATED_HTML" "$BASE" "$NO_ENHANCE" "$SNIPPETS_HOME" "$USER_CWD" <<'PYEOF'
-import json, sys, subprocess, os
-
-selected_arg = sys.argv[1]
-html         = sys.argv[2]
-base         = sys.argv[3]
-no_enhance   = sys.argv[4]
-snippets_dir = sys.argv[5]
-user_cwd     = sys.argv[6]
-
-if selected_arg:
-    sel_file = selected_arg.split()[-1]  # "--selected selected.json" → "selected.json"
-    sel = json.load(open(os.path.join(snippets_dir, sel_file)))
-    groups = sel.get('groups', [[i] for i in sel['selected']])
-else:
-    # No markers: list all blocks and treat each as its own group
-    result = subprocess.run(
-        ['python3', 'extract_lean.py', html, '--list'],
-        capture_output=True, text=True, cwd=snippets_dir
-    )
-    import re
-    groups = [[int(m)] for m in re.findall(r'\[(\d+)\]', result.stdout)]
-
-for n, group in enumerate(groups):
-    indices = ','.join(str(i) for i in group)
-    out = f'{base}_{n+1}.html'
-    cmd = ['python3', 'extract_lean.py', html, '--indices', indices, '--out', out]
-    if no_enhance:
-        cmd.append(no_enhance)
-    subprocess.run(cmd, check=True, cwd=snippets_dir)
-    import shutil
-    src, dst = os.path.join(snippets_dir, out), os.path.join(user_cwd, out)
-    if os.path.abspath(src) != os.path.abspath(dst):
-        shutil.copy(src, dst)
-    print(f'  → {user_cwd}/{out}')
-PYEOF
-
-else
-  OUT="${BASE}.html"
-  python3 extract_lean.py "$GENERATED_HTML" \
-    --out "$SNIPPETS_HOME/$OUT" $SELECTED_ARG $NO_ENHANCE
-  [[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
-  echo "  → $USER_CWD/$OUT"
+# ── Resolve input file ────────────────────────────────────────────────────────
+if [[ -z "$SCRATCH" ]]; then
+  if [[ -f "$USER_CWD/scratch.lean" ]]; then
+    SCRATCH="$USER_CWD/scratch.lean"
+  else
+    SCRATCH="$SNIPPETS_HOME/scratch.lean"
+  fi
 fi
+[[ "$SCRATCH" != /* ]] && SCRATCH="$USER_CWD/$SCRATCH"
+[[ -f "$SCRATCH" ]] || { echo "Error: file not found: $SCRATCH" >&2; exit 1; }
 
+cd "$SNIPPETS_HOME"
+
+# ── 1. Place the user's code as the `Snippet` module ──────────────────────────
+cp "$SCRATCH" verso-snippets/Snippet.lean
+
+# ── 2. Build the renderer (cached) and highlight the module to JSON ───────────
+echo "lean-snippet: building renderer ..."
+build_step render-snippet
+
+echo "lean-snippet: highlighting $SCRATCH ..."
+build_step Snippet:highlighted
+HL_JSON=".lake/build/highlighted/Snippet.json"
+[[ -f "$HL_JSON" ]] || { echo "Error: highlight step produced no JSON" >&2; exit 1; }
+
+# ── 3. Render the JSON to a single self-contained HTML file ───────────────────
+echo "lean-snippet: rendering ..."
+OUT="${BASE}.html"
+.lake/build/bin/render-snippet "$HL_JSON" "$SNIPPETS_HOME/$OUT" $MULTI_BLOCKS $NO_ENHANCE $ANCHOR
+[[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
+echo "  → $USER_CWD/$OUT"
 echo "lean-snippet: done!"

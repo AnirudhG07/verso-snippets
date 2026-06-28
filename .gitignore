@@ -3,8 +3,14 @@
 *.olean
 *.ilean
 *.c
-_site/
 
+# Lake manifest (resolved from lakefile.toml; not source)
+lake-manifest.json
+
+# The `Snippet` module is overwritten with the user's code on each run
+/verso-snippets/Snippet.lean
+
+# Generated output HTML
 /lean-code*.html
 /demo*.html
-**/selected.json/**
+_site

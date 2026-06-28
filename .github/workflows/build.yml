@@ -28,4 +28,4 @@ jobs:
             lake-${{ runner.os }}-
 
       - name: Build
-        run: lake build generate-snippet
+        run: lake build render-snippet

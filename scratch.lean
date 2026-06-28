@@ -1,19 +1,18 @@
 -- Write your Lean 4 code here, then run:
---   ./lean-snippet            (uses this file by default)
---   ./lean-snippet --split    (one HTML file per #show region)
+--   ./lean-snippet                 (uses this file by default)
+--   ./lean-snippet --multi-blocks  (one box per top-level command)
 --
--- Mark regions to display with #show / #endshow:
+-- To show only part of a file (while still compiling the whole thing),
+-- wrap a region in anchor comments and select it with --anchor NAME:
 --
---   -- #show
---   theorem my_theorem : 1 + 1 = 2 := by decide
---   -- #endshow
+--   ./lean-snippet scratch.lean --anchor demo
 --
--- Everything outside markers compiles but won't appear in the output.
+-- Comments are preserved as-is — no conversion needed.
 -- See Demo/AuthVerify.lean for a full worked example.
 
 import Std
 
--- #show
+-- ANCHOR: demo
 open Std.Do
 
 def sum_to_n : Int → Id Int := fun n ↦
@@ -26,5 +25,4 @@ def sum_to_n : Int → Id Int := fun n ↦
       return total)
 
 #eval sum_to_n 10
-
--- #endshow
+-- ANCHOR_END: demo

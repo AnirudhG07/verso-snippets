@@ -26,50 +26,44 @@ You may want the whole Lean4 code or just a small portion of the Lean code into 
 All you need a Lean code, which builds correctly. Yes you can't convert a file which won't build correctly.
 
 If you want the whole code, you don't have to do anything.
-If you only want to display _part_ of a file (while still compiling the whole thing), mark the regions you want shown:
+If you only want to display _part_ of a file (while still compiling the whole thing), wrap the region in **anchor comments** and select it with `--anchor`:
 
 ```lean
 -- helper needed to compile, not displayed
 def IsPrime (n : Nat) := 1 < n ∧ ∀ k, 1 < k → k < n → ¬ k ∣ n
 
--- #show
+-- ANCHOR: main
 /-- Every number larger than 1 has a prime factor -/
 theorem exists_prime_factor :
     ∀ n, 1 < n → ∃ k, IsPrime k ∧ k ∣ n := by
   ...
--- #endshow
+-- ANCHOR_END: main
 ```
 
-- Code outside markers compiles but won't appear in the output HTML.
-- Multiple `-- #show` / `-- #endshow` pairs are supported.
-- With `--split`, each marked region becomes its own file.
-- Without markers, the entire file is shown.
+```bash
+./lean-snippet proof.lean --anchor main
+```
+
+- The whole file is compiled; only the named region is shown.
+- Anchor comments (`-- ANCHOR:` / `-- ANCHOR_END:`) are stripped from the output even when you render the whole file.
+- Anchors are a [SubVerso](https://github.com/leanprover/subverso) feature, so they can also name individual proof states — see SubVerso's docs.
 
 ### One box or many — `--multi-blocks`
 
-By default the shown code renders as **a single continuous code box**, blank
-lines and all. If you'd rather have blank lines break the code into separate
-boxes (one per blank-line-separated group), pass `--multi-blocks`:
+By default the code renders as **a single continuous code box**. Pass
+`--multi-blocks` to render **one box per top-level command** (each `def`,
+`theorem`, `#eval`, … in its own box):
 
 ```bash
 ./lean-snippet proof.lean                 # one box (default)
-./lean-snippet proof.lean --multi-blocks  # a separate box per blank-line group
+./lean-snippet proof.lean --multi-blocks  # one box per command
 ```
 
-`--multi-blocks` controls boxes **within one HTML file**, whereas `--split`
-controls separate **files** per `#show` region — the two compose.
+### Comments and `#eval` output
 
-### Comments — `--raw-comments`
-
-Verso drops bare `-- comment` lines during elaboration, so by default
-`lean-snippet` handles them for you:
-
-- A run of `-- comments` **immediately before a declaration** is converted to a `/-- ... -/` doc comment and shown attached to that declaration.
-- A block of **only** `-- comments` (with no declaration) is dropped — Verso cannot render it.
-
-Pass `--raw-comments` to turn this off and keep `-- comments` exactly as written
-(Verso will then drop them). For prose you always want kept, prefer `/-- ... -/`
-or `/-! ... -/` comments directly.
+Comments are preserved exactly as written — `--` line comments, `/-- … -/` doc
+comments, and `/-! … -/` section comments all render as-is. `#eval` / `#check`
+output and the goal state at each tactic are captured too, and appear on hover.
 
 ## Requirements
 
