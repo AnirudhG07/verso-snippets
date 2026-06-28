@@ -53,15 +53,34 @@ partial def extractMessages : Highlighted → Highlighted × Array Msg
     (.tactics info s e c, ms)
   | other => (other, #[])
 
-/-- With `showOutput`, append the collected messages (as visible `.point`s) at
-    the END of the block — so `#eval` output sits below the code, not inline.
-    Without it, the messages are dropped entirely (no hover, no block). -/
+/-- Walk the tree in render order, deferring each diagnostic message until just
+    after the newline that ends its line. Returns the flattened atoms and any
+    still-pending messages. This places `#eval`/`#check` output directly under
+    the command it belongs to, regardless of how the tree is nested. -/
+partial def collectLines : Highlighted → Array Msg → Array Highlighted × Array Msg
+  | .seq cs, pending =>
+    cs.foldl (init := (#[], pending)) fun (acc : Array Highlighted × Array Msg) c =>
+      let (out, p) := collectLines c acc.2
+      (acc.1 ++ out, p)
+  | .span infos content, pending =>
+    let (out, p) := collectLines content pending
+    (out, p ++ infos)                              -- defer this command's messages
+  | .text s, pending =>
+    if s.contains '\n' && !pending.isEmpty then
+      (#[.text s] ++ pending.map (fun (k, m) => Highlighted.point k m), #[])
+    else
+      (#[.text s], pending)
+  | .tactics i a b c, pending => (#[.tactics i a b c], pending)  -- keep proof states whole
+  | other, pending => (#[other], pending)
+
+/-- With `showOutput`, attach each command's `#eval`/`#check` output on the line
+    right below it. Without it, messages are dropped entirely (no hover, no block). -/
 def withOutput (showOutput : Bool) (hl : Highlighted) : Highlighted :=
-  let (code, msgs) := extractMessages hl
-  if showOutput && !msgs.isEmpty then
-    .seq (#[code] ++ msgs.map (fun (k, m) => Highlighted.point k m))
+  if !showOutput then
+    (extractMessages hl).1
   else
-    code
+    let (atoms, pending) := collectLines hl #[]
+    Highlighted.seq (atoms ++ pending.map (fun (k, m) => Highlighted.point k m))
 
 /-- Render one highlighted fragment to a `<code class="hl lean block">`, threading
     the hover-dedup state so hover ids stay unique across blocks. -/
@@ -153,9 +172,25 @@ window.addEventListener('load', () => {
 /-- A small caption shown above the snippet (e.g. the anchor name). -/
 def labelCss : String := "
 .snippet-label {
-  font-family: sans-serif; font-size: 0.78rem; font-weight: 600;
-  color: #57606a; background: #eaeef2; display: inline-block;
-  padding: 2px 10px; border-radius: 6px; margin: 0 0 0.4rem 0;
+  font-family: sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #24292f;
+  background: #eaeef2;
+  display: inline-block;
+  padding: 5px 16px;
+  border: 1px solid #d0d7de;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  margin: 1.5em 0 0 0;
+  position: relative;
+  top: 1px;
+}
+/* The code box hugs the tab: no gap above it, squared corner under the label. */
+.snippet-label + code.hl.lean.block {
+  margin-top: 0;
+  border-top-left-radius: 0;
 }
 "
 
@@ -237,7 +272,8 @@ def main (args : List String) : IO UInt32 := do
     IO.eprintln "render-snippet: no displayable code found in input"
     return 1
 
-  -- Determine which highlighted fragments become code blocks.
+  -- Determine which highlighted fragments become code blocks. Output placement
+  -- happens later in `renderBlock` (line-by-line), so this stays structural.
   let codes : Array Highlighted ←
     match anchorName with
     | some name =>

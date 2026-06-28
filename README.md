@@ -4,6 +4,10 @@ Usually we just want 1 html file for 1 Lean4 code, not too many verso directorie
 
 This tool generate self-contained HTML snippets from Lean 4 code — with hover tooltips (type info, docstrings, binding highlights), GitHub-style syntax colors, a copy button, and a "Try it!" link to the Lean web editor.
 
+<div align="center">
+<img width="681" height="327" alt="image" src="https://github.com/user-attachments/assets/c5137328-d93e-4851-8eb5-d449b3da2637" />
+</div>
+
 ## What it produces
 
 A single `.html` file you can open in a browser or embed anywhere via `<iframe>`. The file is fully self-contained — no external file dependencies.
@@ -18,7 +22,12 @@ A single `.html` file you can open in a browser or embed anywhere via `<iframe>`
 
 Check out the demo's on the webpage [here](https://anirudhg07.github.io/src/projects/verso-snippets.html) to visualize them.
 
-<img width="815" height="429" alt="image" src="https://github.com/user-attachments/assets/1bf0b33c-b913-4fc5-ad96-ea74f6aab96c" />
+<!--
+<img width="625" height="329" alt="image" src="https://github.com/user-attachments/assets/1bf0b33c-b913-4fc5-ad96-ea74f6aab96c" />
+-->
+<div align="center">
+<img width="650" height="400" alt="image" src="https://github.com/user-attachments/assets/21832169-7139-4eb4-a9f2-78bf517b9319" />
+</div>
 
 ## Marking regions to convert to Html
 
@@ -63,8 +72,7 @@ By default the code renders as **a single continuous code box**. Pass
 
 Comments are preserved exactly as written — `--` line comments, `/-- … -/` doc
 comments, and `/-! … -/` section comments all render as-is. `#eval` / `#check`
-output is shown as a block at the bottom of the code (turn it off with
-`--no-output`), and the goal state at each tactic appears on hover.
+output and the goal state at each tactic are captured too, and appear on hover.
 
 ## Requirements
 
@@ -115,15 +123,13 @@ lean-snippet proof.lean
 
 ## Options
 
-| Flag                       | Description                                                         |
-| -------------------------- | ------------------------------------------------------------------- |
-| `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)                |
-| `--multi-blocks`           | One box per top-level command (default: a single box)              |
-| `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region      |
-| `--label TEXT`             | Caption shown above the snippet (defaults to the anchor name)       |
-| `--no-output`              | Hide `#eval` / `#check` output (shown at the block bottom by default) |
-| `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button      |
-| `--setup`                  | First-time build of the renderer                                    |
+| Flag                       | Description                                                    |
+| -------------------------- | -------------------------------------------------------------- |
+| `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)           |
+| `--multi-blocks`           | One box per top-level command (default: a single box)          |
+| `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region |
+| `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button |
+| `--setup`                  | First-time build of the renderer                               |
 
 ## How it works
 
