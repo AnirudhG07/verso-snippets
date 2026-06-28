@@ -1,0 +1,168 @@
+/* `lean-snippet --slide`: the info panel is JOINED to the code block as one
+   unit, split by a thick blue seam. Click a name/tactic to fill the panel. */
+
+body.slide {
+  max-width: 1180px;
+}
+
+.snippet-layout {
+  display: flex;
+  align-items: stretch; /* code and panel share one height */
+  margin: 1.5em 0;
+}
+.snippet-layout > .lean-snippet {
+  flex: 2 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+/* The code box drops its own margin and its right edge, so it butts up against
+   the panel; corners rounded on the left only. `min-width: 0` + `overflow-x`
+   keep long lines scrolling INSIDE the box instead of pushing past the seam. */
+.snippet-layout > .lean-snippet > code.hl.lean.block {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  /* Flatten the right (seam) side only; top corners are handled by the header. */
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  scrollbar-width: thin; /* Firefox: a visible (not overlay) scrollbar */
+}
+/* The header sits above the code in the left column; its right edge meets the
+   seam, so square that corner and drop its right border. */
+.snippet-layout > .lean-snippet > .snippet-header {
+  border-top-right-radius: 0;
+  border-right: none;
+}
+/* Always show the horizontal scrollbar so it's obvious long lines scroll
+   (macOS otherwise hides the overlay scrollbar until you scroll). */
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar {
+  height: 9px;
+}
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar-thumb {
+  background: #c0c7d0;
+  border-radius: 5px;
+}
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar-track {
+  background: transparent;
+}
+.snippet-layout > .lean-snippet > .snippet-header {
+  margin-top: 0;
+}
+
+/* The panel lives in a relative cell that stretches to the code's height. The
+   panel itself is absolutely positioned and scrolls internally, so a long
+   selection never grows the box — it just scrolls within the same height. */
+.info-panel-cell {
+  flex: 1 1 0;
+  min-width: 12rem;
+  position: relative;
+}
+.info-panel {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-left: 4px solid #0969da; /* the blue seam joining code + panel */
+  border-radius: 0 8px 8px 0;
+  padding: 0.85rem 1rem;
+  font-size: 0.9em;
+  line-height: 1.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.info-panel-empty {
+  color: #6a737d;
+  font-style: italic;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+/* Panel content. Proof states carry token spans (so they stay fully colored);
+   type signatures are stored as plain text by Verso, shown in dark mono. */
+.info-panel .hl.lean {
+  white-space: pre-wrap;
+}
+/* The type signature line. */
+.info-panel .hl.lean > code:not(.docstring) {
+  display: block;
+  color: #0550ae;
+  font-weight: 500;
+}
+/* Divider between the type and its docstring. */
+.info-panel .sep {
+  display: block;
+  height: 1px;
+  background: #d0d7de;
+  margin: 0.6rem 0;
+}
+/* Rendered docstring prose. */
+.info-panel .docstring-rendered {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: normal;
+  color: #24292f;
+}
+.info-panel .docstring-rendered :first-child { margin-top: 0; }
+.info-panel .docstring-rendered :last-child { margin-bottom: 0; }
+.info-panel .docstring-rendered code {
+  background: #eef1f5;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #0550ae;
+}
+
+/* Clickable affordances + selection / occurrence feedback. */
+code.hl.lean.block .token[data-verso-hover],
+code.hl.lean.block .token[data-binding],
+code.hl.lean.block .tactic > label {
+  cursor: pointer;
+}
+.panel-selected {
+  background: rgba(9, 105, 218, 0.18);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(9, 105, 218, 0.45);
+}
+.binding-hl {
+  background: rgba(255, 196, 0, 0.45);
+  border-radius: 3px;
+}
+
+/* Click-only mode routes the proof state to the panel (no inline toggle).
+   `--slide=both` keeps the inline hover/toggle working next to the panel. */
+body.slide-click code.hl.lean.block .tactic-toggle {
+  display: none;
+}
+body.slide-click code.hl.lean.block .tactic-state {
+  display: none !important;
+}
+/* Hide the inline toggle affordance (a bordered `label::after` circle) — in
+   click mode the proof state opens in the panel instead. */
+body.slide-click code.hl.lean.block .tactic > label::after {
+  display: none;
+}
+
+/* Stack vertically on narrow screens; the panel returns to normal flow with a
+   capped height, and the seam moves to its top. */
+@media (max-width: 720px) {
+  .snippet-layout {
+    flex-direction: column;
+  }
+  .snippet-layout > .lean-snippet > code.hl.lean.block {
+    border-radius: 8px 8px 0 0;
+    border-right: 1px solid #d0d7de;
+    border-bottom: none;
+  }
+  .info-panel-cell {
+    min-height: 8rem;
+  }
+  .info-panel {
+    position: static;
+    border-left: 1px solid #d0d7de;
+    border-top: 4px solid #0969da;
+    border-radius: 0 0 8px 8px;
+    max-height: 24rem;
+  }
+}

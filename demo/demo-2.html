@@ -669,26 +669,35 @@ Some CSS frameworks customize details/summary in ways not compatible with Verso'
 
 
 
-.snippet-label {
-  font-family: sans-serif;
-  font-size: 0.92rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: #24292f;
+.snippet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: "Helvetica Neue", Arial, sans-serif;
   background: #eaeef2;
-  display: inline-block;
-  padding: 5px 16px;
   border: 1px solid #d0d7de;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
+  padding: 5px 12px;
   margin: 1.5em 0 0 0;
-  position: relative;
-  top: 1px;
+  min-height: 1.6rem;
 }
-/* The code box hugs the tab: no gap above it, squared corner under the label. */
-.snippet-label + code.hl.lean.block {
+.snippet-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #24292f;
+}
+.snippet-actions {
+  display: flex;
+  gap: 8px;
+}
+/* The code box joins the header below it: flat top corners, no gap. */
+.snippet-header + code.hl.lean.block {
   margin-top: 0;
   border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 
@@ -730,26 +739,23 @@ code.hl.lean.block {
   display: block;
   overflow-x: auto;
 }
-.code-block-actions {
-  position: absolute; top: 8px; right: 8px;
-  display: flex; flex-direction: row-reverse; gap: 8px; z-index: 10;
-  opacity: 0; transition: opacity 0.2s ease;
+.snippet-actions button, .snippet-actions a {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
+  padding: 2px 10px; font-size: 0.75rem; font-weight: 500; color: #24292f;
+  text-decoration: none; font-family: "Helvetica Neue", Arial, sans-serif;
+  cursor: pointer; white-space: nowrap;
 }
-code.hl.lean.block:hover .code-block-actions { opacity: 1; }
-.try-it-button, .copy-button {
-  display: flex; align-items: center; gap: 4px;
-  background: transparent; border: 1px solid #1f2328; border-radius: 6px;
-  padding: 3px 10px; font-size: 0.75rem; font-weight: 500; color: #24292f;
-  text-decoration: none; font-family: sans-serif; cursor: pointer; white-space: nowrap;
-}
-.try-it-button:hover, .copy-button:hover {
+.snippet-actions button:hover, .snippet-actions a:hover {
   border-color: #0969da; color: #0969da; background: #f3f4f6;
 }
+
 
 </style>
 </head>
 <body>
 <div class="lean-snippet">
+<div class="snippet-header"><span class="snippet-title"></span><span class="snippet-actions"></span></div>
 <code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.open-12" data-verso-hover="0">open</span><span class="inter-text"> </span><span class="unknown token" data-binding="">Std.Do</span><span class="inter-text">
 
 </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-25">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-sum_to_n" data-verso-hover="1">sum_to_n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Int" data-verso-hover="2">Int</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="const token" data-binding="const-Id" data-verso-hover="3">Id</span><span class="inter-text"> </span><span class="const token" data-binding="const-Int" data-verso-hover="2">Int</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:=</span><span class="inter-text"> </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Term.fun-58">fun</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.9" data-verso-hover="4">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">↦</span><span class="inter-text">
@@ -1025,24 +1031,22 @@ window.onload = () => {
 </script>
 <script>
 window.addEventListener('load', () => {
-  document.querySelectorAll('code.hl.lean.block').forEach(block => {
-    const code = block.innerText;
-    const actions = document.createElement('div');
-    actions.className = 'code-block-actions';
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'copy-button'; copyBtn.textContent = 'Copy';
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(code).then(() => {
-        copyBtn.textContent = 'Copied!';
-        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
-      });
+  const actions = document.querySelector('.snippet-actions');
+  const blocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
+  if (!actions || !blocks.length) return;
+  const code = blocks.map(b => b.innerText).join('\n\n');
+  const copyBtn = document.createElement('button');
+  copyBtn.textContent = 'Copy';
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(code).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
     });
-    const tryBtn = document.createElement('a');
-    tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(code);
-    tryBtn.target = '_blank'; tryBtn.className = 'try-it-button'; tryBtn.textContent = 'Try it!';
-    actions.appendChild(copyBtn); actions.appendChild(tryBtn);
-    block.appendChild(actions);
   });
+  const tryBtn = document.createElement('a');
+  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(code);
+  tryBtn.target = '_blank'; tryBtn.textContent = 'Try it!';
+  actions.appendChild(copyBtn); actions.appendChild(tryBtn);
 });
 </script>
 </body>

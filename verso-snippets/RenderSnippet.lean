@@ -129,68 +129,71 @@ code.hl.lean.block {
   display: block;
   overflow-x: auto;
 }
-.code-block-actions {
-  position: absolute; top: 8px; right: 8px;
-  display: flex; flex-direction: row-reverse; gap: 8px; z-index: 10;
-  opacity: 0; transition: opacity 0.2s ease;
+.snippet-actions button, .snippet-actions a {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
+  padding: 1px 11px; font-size: 0.88rem; line-height: 1.25; font-weight: 500; color: #24292f;
+  text-decoration: none; font-family: \"Helvetica Neue\", Arial, sans-serif;
+  cursor: pointer; white-space: nowrap;
 }
-code.hl.lean.block:hover .code-block-actions { opacity: 1; }
-.try-it-button, .copy-button {
-  display: flex; align-items: center; gap: 4px;
-  background: transparent; border: 1px solid #1f2328; border-radius: 6px;
-  padding: 3px 10px; font-size: 0.75rem; font-weight: 500; color: #24292f;
-  text-decoration: none; font-family: sans-serif; cursor: pointer; white-space: nowrap;
-}
-.try-it-button:hover, .copy-button:hover {
+.snippet-actions button:hover, .snippet-actions a:hover {
   border-color: #0969da; color: #0969da; background: #f3f4f6;
 }
 "
 
 def enhanceJs : String := "
 window.addEventListener('load', () => {
-  document.querySelectorAll('code.hl.lean.block').forEach(block => {
-    const code = block.innerText;
-    const actions = document.createElement('div');
-    actions.className = 'code-block-actions';
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'copy-button'; copyBtn.textContent = 'Copy';
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(code).then(() => {
-        copyBtn.textContent = 'Copied!';
-        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
-      });
+  const actions = document.querySelector('.snippet-actions');
+  const blocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
+  if (!actions || !blocks.length) return;
+  const code = blocks.map(b => b.innerText).join('\\n\\n');
+  const copyBtn = document.createElement('button');
+  copyBtn.textContent = 'Copy';
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(code).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
     });
-    const tryBtn = document.createElement('a');
-    tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(code);
-    tryBtn.target = '_blank'; tryBtn.className = 'try-it-button'; tryBtn.textContent = 'Try it!';
-    actions.appendChild(copyBtn); actions.appendChild(tryBtn);
-    block.appendChild(actions);
   });
+  const tryBtn = document.createElement('a');
+  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(code);
+  tryBtn.target = '_blank'; tryBtn.textContent = 'Try it!';
+  actions.appendChild(copyBtn); actions.appendChild(tryBtn);
 });
 "
 
-/-- A small caption shown above the snippet (e.g. the anchor name). -/
+/-- A permanent header bar above the code: the label (or empty) on the left,
+    the Copy / Try-it buttons on the right. -/
 def labelCss : String := "
-.snippet-label {
-  font-family: sans-serif;
-  font-size: 0.92rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: #24292f;
+.snippet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: \"Helvetica Neue\", Arial, sans-serif;
   background: #eaeef2;
-  display: inline-block;
-  padding: 5px 16px;
   border: 1px solid #d0d7de;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
+  padding: 5px 12px;
   margin: 1.5em 0 0 0;
-  position: relative;
-  top: 1px;
+  min-height: 1.6rem;
 }
-/* The code box hugs the tab: no gap above it, squared corner under the label. */
-.snippet-label + code.hl.lean.block {
+.snippet-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #24292f;
+}
+.snippet-actions {
+  display: flex;
+  gap: 8px;
+}
+/* The code box joins the header below it: flat top corners, no gap. */
+.snippet-header + code.hl.lean.block {
   margin-top: 0;
   border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 "
 
@@ -198,34 +201,64 @@ def labelCss : String := "
 def escapeLabel (s : String) : String :=
   s.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
 
-/-- Assemble the full self-contained HTML page. -/
-def page (blocks : String) (docsJson : String) (enhance : Bool) (label : Option String) : String :=
+/-- Click-to-panel infoview JS/CSS for `--slide` mode (vendored in `web/`). -/
+def panelJs  : String := include_str "web/panel.js"
+def panelCss : String := include_str "web/panel.css"
+
+/-- The hover-tooltip script stack (popper + tippy + the highlighting JS). -/
+def hoverScripts : String :=
+  "<script>" ++ popper ++ "</script>\n" ++
+  "<script>" ++ tippy ++ "</script>\n" ++
+  "<script>" ++ marked ++ "</script>\n" ++
+  "<script>\n(function(){\n  const _origFetch = window.fetch;\n" ++
+  "  window.fetch = function(url, ...args) {\n" ++
+  "    if (typeof url === 'string' && url.endsWith('-verso-docs.json')) {\n" ++
+  "      return Promise.resolve(new Response(JSON.stringify(_versoDocsJson)));\n" ++
+  "    }\n    return _origFetch.call(this, url, ...args);\n  };\n})();\n</script>\n" ++
+  "<script>" ++ highlightingJs ++ "</script>\n"
+
+/-- Assemble the full self-contained HTML page.
+    `slide`: `none` = full-width code with hover tooltips; `some false` = click-only
+    panel (no hovers); `some true` = panel on click AND hover tooltips ("both"). -/
+def page (blocks : String) (docsJson : String) (enhance : Bool) (label : Option String)
+    (slide : Option Bool) : String :=
+  let isSlide := slide.isSome
+  let both    := slide == some true
+  let bodyClass :=
+    if isSlide then (if both then "slide slide-both" else "slide slide-click") else ""
   let head :=
     "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n" ++
     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" ++
     "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css\" type=\"text/css\">\n" ++
     "<style>\nbody { background:#fff; color:#222; max-width:860px; margin:0 auto; padding:1rem 2rem; }\n" ++
-    highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++ (if enhance then enhanceCss else "") ++ "\n</style>\n</head>\n<body>\n"
-  let labelHtml :=
-    match label with
-    | some t => "<div class=\"snippet-label\">" ++ escapeLabel t ++ "</div>\n"
-    | none   => ""
+    highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++
+    (if enhance then enhanceCss else "") ++ "\n" ++
+    (if isSlide then panelCss else "") ++ "\n</style>\n</head>\n" ++
+    (if isSlide then "<body class=\"" ++ bodyClass ++ "\">\n" else "<body>\n")
+  -- A permanent header (title + Copy/Try-it) whenever buttons or a label exist.
+  let titleText := label.map escapeLabel |>.getD ""
+  let headerHtml :=
+    if enhance || label.isSome then
+      "<div class=\"snippet-header\"><span class=\"snippet-title\">" ++ titleText ++
+        "</span><span class=\"snippet-actions\"></span></div>\n"
+    else ""
+  let snippet := "<div class=\"lean-snippet\">\n" ++ headerHtml ++ blocks ++ "\n</div>\n"
+  let body :=
+    if isSlide then
+      "<div class=\"snippet-layout\">\n" ++ snippet ++
+        "<div class=\"info-panel-cell\"><aside class=\"info-panel\"></aside></div>\n</div>\n"
+    else snippet
   let scripts :=
     "<script>const _versoDocsJson = " ++ docsJson ++ ";</script>\n" ++
-    "<script>" ++ popper ++ "</script>\n" ++
-    "<script>" ++ tippy ++ "</script>\n" ++
-    "<script>" ++ marked ++ "</script>\n" ++
-    "<script>\n(function(){\n  const _origFetch = window.fetch;\n" ++
-    "  window.fetch = function(url, ...args) {\n" ++
-    "    if (typeof url === 'string' && url.endsWith('-verso-docs.json')) {\n" ++
-    "      return Promise.resolve(new Response(JSON.stringify(_versoDocsJson)));\n" ++
-    "    }\n    return _origFetch.call(this, url, ...args);\n  };\n})();\n</script>\n" ++
-    "<script>" ++ highlightingJs ++ "</script>\n" ++
+    -- click-only slides skip the hover stack but still need `marked` for docstrings;
+    -- "both" and normal mode include the full hover stack (which has `marked`).
+    (if isSlide && !both then "<script>" ++ marked ++ "</script>\n" else hoverScripts) ++
+    (if isSlide then "<script>" ++ panelJs ++ "</script>\n" else "") ++
     (if enhance then "<script>" ++ enhanceJs ++ "</script>\n" else "")
-  head ++ "<div class=\"lean-snippet\">\n" ++ labelHtml ++ blocks ++ "\n</div>\n" ++ scripts ++ "</body>\n</html>\n"
+  head ++ body ++ scripts ++ "</body>\n</html>\n"
 
 def usage : String :=
-  "Usage: render-snippet <input.json> <output.html> [--multi-blocks] [--no-enhance] [--no-output] [--anchor NAME] [--label TEXT]"
+  "Usage: render-snippet <input.json> <output.html> [--multi-blocks] [--no-enhance] [--no-output] [--slide|--slide=click|--slide=both] [--anchor NAME] [--label TEXT]"
 
 /-- Strip `-- ANCHOR:`/`-- ANCHOR_END:` markers from highlighted code, falling
     back to the original on any anchor-parse error. -/
@@ -240,6 +273,8 @@ def main (args : List String) : IO UInt32 := do
   let mut multiBlocks := false
   let mut enhance := true
   let mut showOutput := true
+  -- none = off, some false = click-only, some true = both (click + hover)
+  let mut slide : Option Bool := none
   let mut anchorName : Option String := none
   let mut labelText : Option String := none
   let mut rest := args
@@ -248,6 +283,9 @@ def main (args : List String) : IO UInt32 := do
     | "--multi-blocks" :: more => multiBlocks := true; rest := more
     | "--no-enhance"   :: more => enhance := false;    rest := more
     | "--no-output"    :: more => showOutput := false; rest := more
+    | "--slide"        :: more => slide := some false; rest := more
+    | "--slide=click"  :: more => slide := some false; rest := more
+    | "--slide=both"   :: more => slide := some true;  rest := more
     | "--anchor" :: name :: more => anchorName := some name; rest := more
     | "--label"  :: text :: more => labelText := some text; rest := more
     | a :: more =>
@@ -301,6 +339,6 @@ def main (args : List String) : IO UInt32 := do
   let docsJson := st.dedup.docJson.compress
   -- An explicit --label wins; otherwise an anchor selection labels itself.
   let label := labelText.orElse (fun _ => anchorName)
-  IO.FS.writeFile outPath (page blocks docsJson enhance label)
+  IO.FS.writeFile outPath (page blocks docsJson enhance label slide)
   IO.println s!"render-snippet: wrote {htmls.size} block(s) to {outPath}"
   return 0
