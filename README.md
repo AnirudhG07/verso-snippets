@@ -121,18 +121,7 @@ ln -s "$PWD/lean-snippet" ~/bin/lean-snippet
 lean-snippet proof.lean
 ```
 
-## Options
-
-| Flag                       | Description                                                    |
-| -------------------------- | -------------------------------------------------------------- |
-| `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)           |
-| `--multi-blocks`           | One box per top-level command (default: a single box)          |
-| `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region |
-| `--slide[=click\|both]`    | Info in a joined right-side panel on click; `=both` keeps hovers too |
-| `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button |
-| `--setup`                  | First-time build of the renderer                               |
-
-### Presentation mode — `--slide`
+## Presentation mode — `--slide`
 
 For slides or embedding, hover tooltips get in the way. With `--slide` the
 snippet renders with an **info panel joined to the right of the code** (split by
@@ -148,6 +137,33 @@ the panel, nothing pops up over the code.
 `--slide=click` is the default; `--slide=both` keeps the normal hover tooltips
 working alongside the click panel. Inspired by
 [verso-slides](https://github.com/leanprover/verso-slides).
+
+## Literate mode — `--literate`
+
+Turn a `.lean` file into a mini-article: `/-! … -/` module-doc blocks render as
+**Markdown prose** — headings, lists, bold, links — with **`$LaTeX$` math**
+(typeset by KaTeX, fonts inlined so the file stays self-contained), interleaved
+with the highlighted code and its `#eval` output.
+
+```bash
+./lean-snippet demo/demo-4.lean --literate
+```
+
+Only `/-! … -/` blocks become prose; `/-- … -/` doc comments stay attached to
+their declarations as usual. `--anchor` / `--multi-blocks` don't apply in
+literate mode (the whole document is rendered in source order).
+
+## Options
+
+| Flag                       | Description                                                    |
+| -------------------------- | -------------------------------------------------------------- |
+| `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)           |
+| `--multi-blocks`           | One box per top-level command (default: a single box)          |
+| `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region |
+| `--literate`               | Render `/-! … -/` blocks as prose (Markdown + `$LaTeX$`) between the code |
+| `--slide[=click\|both]`    | Info in a joined right-side panel on click; `=both` keeps hovers too |
+| `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button |
+| `--setup`                  | First-time build of the renderer                               |
 
 ## How it works
 

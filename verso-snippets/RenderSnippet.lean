@@ -9,14 +9,19 @@ import SubVerso.Highlighting.Anchors
 import Verso.Code.Highlighted
 import Verso.Code.Highlighted.WebAssets
 import Verso.Output.Html
+import Verso.Doc.Html
+import Verso.Output.Html.KaTeX
+import VersoManual.Markdown
+import MD4Lean
 
 open Lean (Json)
 open SubVerso.Highlighting (Highlighted)
 open SubVerso.Module (Module ModuleItem)
 open Verso.Output (Html)
-open Verso.Doc (Genre)
+open Verso.Doc (Genre Block Inline)
 open Verso.Code (highlightingStyle highlightingJs)
 open Verso.Code.Highlighted.WebAssets (popper tippy marked)
+open Verso.Genre.Manual.Markdown (blockFromMarkdown' strongEmphHeaders' inlineFromMarkdown')
 
 /-- The trivial genre: its `TraverseContext` is `Unit`, so we can build a
     rendering context with no document around the code. -/
@@ -32,6 +37,57 @@ def ctx : Verso.Code.HighlightHtmlM.Context G where
 /-- Command kinds that carry no displayable code. -/
 def skipKinds : List Lean.Name :=
   [`Lean.Parser.Module.header, `Lean.Parser.Command.eoi]
+
+-- ── Literate prose: render `/-! … -/` blocks as Markdown + LaTeX ───────────────
+
+private def trimStr (s : String) : String :=
+  let l := s.toList.dropWhile (·.isWhitespace)
+  String.ofList (l.reverse.dropWhile (·.isWhitespace) |>.reverse)
+
+private def afterPrefix (s p : String) : String :=
+  if s.startsWith p then String.ofList (s.toList.drop p.length) else s
+
+private def beforeSuffix (s p : String) : String :=
+  if s.endsWith p then String.ofList (s.toList.take (s.length - p.length)) else s
+
+/-- Strip the `/-! … -/` (or `/-- … -/`) delimiters from a module-doc block. -/
+def stripModuleDoc (s : String) : String :=
+  let s := trimStr s
+  let s := if s.startsWith "/-!" then afterPrefix s "/-!"
+           else if s.startsWith "/--" then afterPrefix s "/--"
+           else if s.startsWith "/-" then afterPrefix s "/-"
+           else s
+  let s := if s.endsWith "-/" then beforeSuffix s "-/" else s
+  trimStr s
+
+/-- Render a Markdown string (with `$…$` LaTeX) to an HTML string using Verso's
+    pure Markdown→AST path on the trivial genre. Headers are emitted as real
+    `<hN>` (Genre.none has no header block, so they need handling here); all other
+    blocks go through `blockFromMarkdown'` → `Block.toHtml`. -/
+def proseHtml (md : String) (st0 : Verso.Code.Hover.State Html) :
+    String × Verso.Code.Hover.State Html := Id.run do
+  let opts : Verso.Doc.Html.Options Id := { logError := fun _ => pure () }
+  match MD4Lean.parse md (MD4Lean.MD_DIALECT_COMMONMARK ||| MD4Lean.MD_FLAG_LATEXMATHSPANS) with
+  | none => return ("<pre>" ++ ((md.replace "&" "&amp;").replace "<" "&lt;") ++ "</pre>", st0)
+  | some doc =>
+    let mut st := st0
+    let mut out := ""
+    for mb in doc.blocks do
+      match mb with
+      | .header lvl text =>
+        let inls : Array (Inline G) :=
+          text.filterMap (fun t => (inlineFromMarkdown' (g := G) t).toOption)
+        let (h, st') := (G.toHtml opts () () {} {} {} (Inline.concat inls)).run st
+        st := st'
+        let n := toString (min (max lvl 1) 6)
+        out := out ++ "<h" ++ n ++ ">" ++ h.asString ++ "</h" ++ n ++ ">\n"
+      | _ =>
+        match blockFromMarkdown' (g := G) mb (handleHeaders := strongEmphHeaders') with
+        | .ok b =>
+          let (h, st') := (G.toHtml opts () () {} {} {} b).run st
+          st := st'; out := out ++ h.asString ++ "\n"
+        | .error _ => pure ()
+    return (out, st)
 
 /-- A diagnostic message attached to code (e.g. `#eval` output, a warning). -/
 abbrev Msg := Highlighted.Span.Kind × Highlighted.MessageContents Highlighted
@@ -205,6 +261,73 @@ def escapeLabel (s : String) : String :=
 def panelJs  : String := include_str "web/panel.js"
 def panelCss : String := include_str "web/panel.css"
 
+-- ── Literate-mode assets: KaTeX (math) + prose styling ─────────────────────────
+
+private def b64Table : Array Char :=
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toList.toArray
+
+/-- Standard base64 encoding of a byte array (for inlining fonts as data URIs). -/
+def base64 (bytes : ByteArray) : String := Id.run do
+  let mut out := ""
+  let n := bytes.size
+  let mut i := 0
+  while i + 3 ≤ n do
+    let t := (bytes[i]!.toNat <<< 16) ||| (bytes[i+1]!.toNat <<< 8) ||| bytes[i+2]!.toNat
+    out := out.push b64Table[(t >>> 18) &&& 63]!
+    out := out.push b64Table[(t >>> 12) &&& 63]!
+    out := out.push b64Table[(t >>> 6) &&& 63]!
+    out := out.push b64Table[t &&& 63]!
+    i := i + 3
+  let rem := n - i
+  if rem == 1 then
+    let t := bytes[i]!.toNat <<< 16
+    out := (out.push b64Table[(t >>> 18) &&& 63]!).push b64Table[(t >>> 12) &&& 63]!
+    out := out ++ "=="
+  else if rem == 2 then
+    let t := (bytes[i]!.toNat <<< 16) ||| (bytes[i+1]!.toNat <<< 8)
+    out := (out.push b64Table[(t >>> 18) &&& 63]!).push b64Table[(t >>> 12) &&& 63]!
+    out := out.push b64Table[(t >>> 6) &&& 63]!
+    out := out ++ "="
+  return out
+
+/-- Inline KaTeX's woff2 fonts into its CSS as `data:` URIs, so a literate
+    snippet with math stays a single self-contained file. -/
+def inlineKatexFonts (css : String) : String := Id.run do
+  let mut out := css
+  for (name, bytes) in Verso.Output.Html.katexFonts do
+    if name.endsWith ".woff2" then
+      let file := name.replace "katex/fonts/" ""
+      out := out.replace ("fonts/" ++ file) ("data:font/woff2;base64," ++ base64 bytes)
+  return out
+
+def katexCss  : String := inlineKatexFonts Verso.Output.Html.katex.css
+def katexJs   : String := Verso.Output.Html.katex.js
+def katexMath : String := Verso.Output.Html.math.js
+
+/-- Styling for the rendered `/-! … -/` Markdown prose blocks. -/
+def proseCss : String := "
+.prose {
+  font-family: \"Helvetica Neue\", \"Segoe UI\", Roboto, Arial, sans-serif;
+  line-height: 1.6; margin: 1.4em 0; color: #24292f;
+}
+.prose > :first-child { margin-top: 0; }
+.prose > :last-child { margin-bottom: 0; }
+.prose h1, .prose h2, .prose h3 { font-weight: 600; line-height: 1.25; margin: 1.2em 0 0.5em; }
+.prose h1 { font-size: 1.6em; } .prose h2 { font-size: 1.3em; } .prose h3 { font-size: 1.1em; }
+.prose p { margin: 0.7em 0; }
+.prose ul, .prose ol { margin: 0.7em 0; padding-left: 1.5em; }
+.prose li { margin: 0.2em 0; }
+.prose a { color: #0969da; }
+.prose blockquote {
+  margin: 0.8em 0; padding: 0.1em 1em; color: #57606a; border-left: 0.25em solid #d0d7de;
+}
+.prose code {
+  background: #eef1f5; border-radius: 4px; padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; color: #0550ae;
+}
+.prose .math.display { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
+"
+
 /-- The hover-tooltip script stack (popper + tippy + the highlighting JS). -/
 def hoverScripts : String :=
   "<script>" ++ popper ++ "</script>\n" ++
@@ -221,7 +344,7 @@ def hoverScripts : String :=
     `slide`: `none` = full-width code with hover tooltips; `some false` = click-only
     panel (no hovers); `some true` = panel on click AND hover tooltips ("both"). -/
 def page (blocks : String) (docsJson : String) (enhance : Bool) (label : Option String)
-    (slide : Option Bool) : String :=
+    (slide : Option Bool) (literate : Bool) : String :=
   let isSlide := slide.isSome
   let both    := slide == some true
   let bodyClass :=
@@ -233,7 +356,8 @@ def page (blocks : String) (docsJson : String) (enhance : Bool) (label : Option 
     "<style>\nbody { background:#fff; color:#222; max-width:860px; margin:0 auto; padding:1rem 2rem; }\n" ++
     highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++
     (if enhance then enhanceCss else "") ++ "\n" ++
-    (if isSlide then panelCss else "") ++ "\n</style>\n</head>\n" ++
+    (if isSlide then panelCss else "") ++ "\n" ++
+    (if literate then katexCss ++ "\n" ++ proseCss else "") ++ "\n</style>\n</head>\n" ++
     (if isSlide then "<body class=\"" ++ bodyClass ++ "\">\n" else "<body>\n")
   -- A permanent header (title + Copy/Try-it) whenever buttons or a label exist.
   let titleText := label.map escapeLabel |>.getD ""
@@ -254,11 +378,12 @@ def page (blocks : String) (docsJson : String) (enhance : Bool) (label : Option 
     -- "both" and normal mode include the full hover stack (which has `marked`).
     (if isSlide && !both then "<script>" ++ marked ++ "</script>\n" else hoverScripts) ++
     (if isSlide then "<script>" ++ panelJs ++ "</script>\n" else "") ++
+    (if literate then "<script>" ++ katexJs ++ "</script>\n<script>" ++ katexMath ++ "</script>\n" else "") ++
     (if enhance then "<script>" ++ enhanceJs ++ "</script>\n" else "")
   head ++ body ++ scripts ++ "</body>\n</html>\n"
 
 def usage : String :=
-  "Usage: render-snippet <input.json> <output.html> [--multi-blocks] [--no-enhance] [--no-output] [--slide|--slide=click|--slide=both] [--anchor NAME] [--label TEXT]"
+  "Usage: render-snippet <input.json> <output.html> [--multi-blocks] [--no-enhance] [--no-output] [--literate] [--slide|--slide=click|--slide=both] [--anchor NAME] [--label TEXT]"
 
 /-- Strip `-- ANCHOR:`/`-- ANCHOR_END:` markers from highlighted code, falling
     back to the original on any anchor-parse error. -/
@@ -275,6 +400,7 @@ def main (args : List String) : IO UInt32 := do
   let mut showOutput := true
   -- none = off, some false = click-only, some true = both (click + hover)
   let mut slide : Option Bool := none
+  let mut literate := false
   let mut anchorName : Option String := none
   let mut labelText : Option String := none
   let mut rest := args
@@ -283,6 +409,7 @@ def main (args : List String) : IO UInt32 := do
     | "--multi-blocks" :: more => multiBlocks := true; rest := more
     | "--no-enhance"   :: more => enhance := false;    rest := more
     | "--no-output"    :: more => showOutput := false; rest := more
+    | "--literate"     :: more => literate := true;    rest := more
     | "--slide"        :: more => slide := some false; rest := more
     | "--slide=click"  :: more => slide := some false; rest := more
     | "--slide=both"   :: more => slide := some true;  rest := more
@@ -310,35 +437,51 @@ def main (args : List String) : IO UInt32 := do
     IO.eprintln "render-snippet: no displayable code found in input"
     return 1
 
-  -- Determine which highlighted fragments become code blocks. Output placement
-  -- happens later in `renderBlock` (line-by-line), so this stays structural.
-  let codes : Array Highlighted ←
-    match anchorName with
-    | some name =>
-      -- Show only the named ANCHOR region.
-      match (Highlighted.seq (anchorItems.map (·.code))).anchored with
-      | .error e => do IO.eprintln s!"render-snippet: anchor error: {e}"; return 1
-      | .ok a =>
-        match a.anchors[name]? with
-        | some hl => pure #[hl]
-        | none    => do
-          IO.eprintln s!"render-snippet: no anchor named '{name}'"; return 1
-    | none =>
-      -- One block by default; per-command with --multi-blocks. Markers stripped.
-      if multiBlocks then pure (displayItems.map (fun it => stripAnchors it.code))
-      else pure #[stripAnchors (Highlighted.seq (anchorItems.map (·.code)))]
-
   let mut st : Verso.Code.Hover.State Html := {}
   let mut htmls : Array String := #[]
-  for code in codes do
-    let (h, st') := renderBlock showOutput code st
-    st := st'
-    htmls := htmls.push h.asString
+
+  if literate then
+    -- Interleave prose (`/-! … -/` module docs → Markdown) and code runs in
+    -- source order; `--anchor`/`--multi-blocks` don't apply here.
+    let mut run : Array Highlighted := #[]
+    for it in mod.items do
+      if it.kind == `Lean.Parser.Command.moduleDoc then
+        if !run.isEmpty then
+          let (h, st') := renderBlock showOutput (Highlighted.seq run) st
+          st := st'; htmls := htmls.push h.asString; run := #[]
+        let (proseStr, st') := proseHtml (stripModuleDoc it.code.toString) st
+        st := st'
+        htmls := htmls.push ("<div class=\"prose\">\n" ++ proseStr ++ "\n</div>")
+      else if !(skipKinds.contains it.kind) then
+        run := run.push (stripAnchors it.code)
+    if !run.isEmpty then
+      let (h, st') := renderBlock showOutput (Highlighted.seq run) st
+      st := st'; htmls := htmls.push h.asString
+  else
+    -- Which highlighted fragments become code blocks. Output placement happens
+    -- later in `renderBlock` (line-by-line), so this stays structural.
+    let codes : Array Highlighted ←
+      match anchorName with
+      | some name =>
+        match (Highlighted.seq (anchorItems.map (·.code))).anchored with
+        | .error e => do IO.eprintln s!"render-snippet: anchor error: {e}"; return 1
+        | .ok a =>
+          match a.anchors[name]? with
+          | some hl => pure #[hl]
+          | none    => do
+            IO.eprintln s!"render-snippet: no anchor named '{name}'"; return 1
+      | none =>
+        if multiBlocks then pure (displayItems.map (fun it => stripAnchors it.code))
+        else pure #[stripAnchors (Highlighted.seq (anchorItems.map (·.code)))]
+    for code in codes do
+      let (h, st') := renderBlock showOutput code st
+      st := st'
+      htmls := htmls.push h.asString
 
   let blocks := String.intercalate "\n" htmls.toList
   let docsJson := st.dedup.docJson.compress
   -- An explicit --label wins; otherwise an anchor selection labels itself.
   let label := labelText.orElse (fun _ => anchorName)
-  IO.FS.writeFile outPath (page blocks docsJson enhance label slide)
+  IO.FS.writeFile outPath (page blocks docsJson enhance label slide literate)
   IO.println s!"render-snippet: wrote {htmls.size} block(s) to {outPath}"
   return 0
