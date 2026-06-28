@@ -63,7 +63,8 @@ By default the code renders as **a single continuous code box**. Pass
 
 Comments are preserved exactly as written — `--` line comments, `/-- … -/` doc
 comments, and `/-! … -/` section comments all render as-is. `#eval` / `#check`
-output and the goal state at each tactic are captured too, and appear on hover.
+output is shown as a block at the bottom of the code (turn it off with
+`--no-output`), and the goal state at each tactic appears on hover.
 
 ## Requirements
 
@@ -119,6 +120,8 @@ lean-snippet proof.lean
 | `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)                |
 | `--multi-blocks`           | One box per top-level command (default: a single box)              |
 | `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region      |
+| `--label TEXT`             | Caption shown above the snippet (defaults to the anchor name)       |
+| `--no-output`              | Hide `#eval` / `#check` output (shown at the block bottom by default) |
 | `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button      |
 | `--setup`                  | First-time build of the renderer                                    |
 

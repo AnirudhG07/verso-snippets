@@ -3,11 +3,6 @@ RenderSnippet — read SubVerso's highlighted-module JSON and emit a single,
 self-contained HTML snippet using Verso's own rendering library.
 
 Usage: render-snippet <input.json> <output.html> [--multi-blocks] [--no-enhance]
-
-This replaces the old "build a Verso document, then scrape the HTML with Python"
-pipeline. The JSON comes from SubVerso's `:highlighted` Lake facet, which drives
-the Lean compiler directly — so comments, `#eval` output, and proof states are
-all present, and we render them with Verso's library (robust to HTML changes).
 -/
 import SubVerso.Module
 import SubVerso.Highlighting.Anchors
@@ -38,11 +33,41 @@ def ctx : Verso.Code.HighlightHtmlM.Context G where
 def skipKinds : List Lean.Name :=
   [`Lean.Parser.Module.header, `Lean.Parser.Command.eoi]
 
+/-- A diagnostic message attached to code (e.g. `#eval` output, a warning). -/
+abbrev Msg := Highlighted.Span.Kind × Highlighted.MessageContents Highlighted
+
+/-- Pull every diagnostic message out of the tree, returning the code with the
+    message-carrying `.span`s flattened to just their code, plus the collected
+    messages. Token type-hovers and proof states (`.tactics`) are untouched. -/
+partial def extractMessages : Highlighted → Highlighted × Array Msg
+  | .span infos content =>
+    let (c, ms) := extractMessages content
+    (c, ms ++ infos)
+  | .seq hls =>
+    let (cs, ms) := hls.foldl (init := (#[], #[])) fun (acc : Array Highlighted × Array Msg) h =>
+      let (c, m) := extractMessages h
+      (acc.1.push c, acc.2 ++ m)
+    (.seq cs, ms)
+  | .tactics info s e content =>
+    let (c, ms) := extractMessages content
+    (.tactics info s e c, ms)
+  | other => (other, #[])
+
+/-- With `showOutput`, append the collected messages (as visible `.point`s) at
+    the END of the block — so `#eval` output sits below the code, not inline.
+    Without it, the messages are dropped entirely (no hover, no block). -/
+def withOutput (showOutput : Bool) (hl : Highlighted) : Highlighted :=
+  let (code, msgs) := extractMessages hl
+  if showOutput && !msgs.isEmpty then
+    .seq (#[code] ++ msgs.map (fun (k, m) => Highlighted.point k m))
+  else
+    code
+
 /-- Render one highlighted fragment to a `<code class="hl lean block">`, threading
     the hover-dedup state so hover ids stay unique across blocks. -/
-def renderBlock (code : Highlighted) (st : Verso.Code.Hover.State Html) :
+def renderBlock (showOutput : Bool) (code : Highlighted) (st : Verso.Code.Hover.State Html) :
     Html × Verso.Code.Hover.State Html :=
-  Id.run <| ((code.blockHtml "snippet").run ctx).run st
+  Id.run <| (((withOutput showOutput code).blockHtml "snippet").run ctx).run st
 
 -- ── Optional "enhance" layer: GitHub-style colors + copy / Try-it buttons ─────
 
@@ -61,6 +86,18 @@ code.hl.lean.block .inter-text {
 }
 /* Keep real tokens upright even though inter-text above is italic. */
 code.hl.lean.block .token:not(.doc-comment) { font-style: normal; }
+/* #eval / #check output etc. — shown as a visible block, not an overlapping hover. */
+code.hl.lean.block .verso-message {
+  display: block;
+  white-space: pre-wrap;
+  font-style: normal;
+  color: #24292f;
+  background: #eef1f5;
+  border-left: 0.2rem solid #4777ff;
+  padding: 0.2rem 0.6rem;
+  margin: 0.3rem 0;
+  border-radius: 4px;
+}
 code.hl.lean.block {
   background-color: #f6f8fa;
   padding: 1rem;
@@ -113,14 +150,31 @@ window.addEventListener('load', () => {
 });
 "
 
+/-- A small caption shown above the snippet (e.g. the anchor name). -/
+def labelCss : String := "
+.snippet-label {
+  font-family: sans-serif; font-size: 0.78rem; font-weight: 600;
+  color: #57606a; background: #eaeef2; display: inline-block;
+  padding: 2px 10px; border-radius: 6px; margin: 0 0 0.4rem 0;
+}
+"
+
+/-- HTML-escape the few characters that matter for a text label. -/
+def escapeLabel (s : String) : String :=
+  s.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
+
 /-- Assemble the full self-contained HTML page. -/
-def page (blocks : String) (docsJson : String) (enhance : Bool) : String :=
+def page (blocks : String) (docsJson : String) (enhance : Bool) (label : Option String) : String :=
   let head :=
     "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n" ++
     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" ++
     "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css\" type=\"text/css\">\n" ++
     "<style>\nbody { background:#fff; color:#222; max-width:860px; margin:0 auto; padding:1rem 2rem; }\n" ++
-    highlightingStyle ++ "\n" ++ (if enhance then enhanceCss else "") ++ "\n</style>\n</head>\n<body>\n"
+    highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++ (if enhance then enhanceCss else "") ++ "\n</style>\n</head>\n<body>\n"
+  let labelHtml :=
+    match label with
+    | some t => "<div class=\"snippet-label\">" ++ escapeLabel t ++ "</div>\n"
+    | none   => ""
   let scripts :=
     "<script>const _versoDocsJson = " ++ docsJson ++ ";</script>\n" ++
     "<script>" ++ popper ++ "</script>\n" ++
@@ -133,10 +187,10 @@ def page (blocks : String) (docsJson : String) (enhance : Bool) : String :=
     "    }\n    return _origFetch.call(this, url, ...args);\n  };\n})();\n</script>\n" ++
     "<script>" ++ highlightingJs ++ "</script>\n" ++
     (if enhance then "<script>" ++ enhanceJs ++ "</script>\n" else "")
-  head ++ "<div class=\"lean-snippet\">\n" ++ blocks ++ "\n</div>\n" ++ scripts ++ "</body>\n</html>\n"
+  head ++ "<div class=\"lean-snippet\">\n" ++ labelHtml ++ blocks ++ "\n</div>\n" ++ scripts ++ "</body>\n</html>\n"
 
 def usage : String :=
-  "Usage: render-snippet <input.json> <output.html> [--multi-blocks] [--no-enhance] [--anchor NAME]"
+  "Usage: render-snippet <input.json> <output.html> [--multi-blocks] [--no-enhance] [--no-output] [--anchor NAME] [--label TEXT]"
 
 /-- Strip `-- ANCHOR:`/`-- ANCHOR_END:` markers from highlighted code, falling
     back to the original on any anchor-parse error. -/
@@ -150,13 +204,17 @@ def main (args : List String) : IO UInt32 := do
   let mut pos : Array String := #[]
   let mut multiBlocks := false
   let mut enhance := true
+  let mut showOutput := true
   let mut anchorName : Option String := none
+  let mut labelText : Option String := none
   let mut rest := args
   while !rest.isEmpty do
     match rest with
     | "--multi-blocks" :: more => multiBlocks := true; rest := more
     | "--no-enhance"   :: more => enhance := false;    rest := more
+    | "--no-output"    :: more => showOutput := false; rest := more
     | "--anchor" :: name :: more => anchorName := some name; rest := more
+    | "--label"  :: text :: more => labelText := some text; rest := more
     | a :: more =>
       if a.startsWith "--" then
         IO.eprintln s!"Unknown option: {a}"; return 1
@@ -199,12 +257,14 @@ def main (args : List String) : IO UInt32 := do
   let mut st : Verso.Code.Hover.State Html := {}
   let mut htmls : Array String := #[]
   for code in codes do
-    let (h, st') := renderBlock code st
+    let (h, st') := renderBlock showOutput code st
     st := st'
     htmls := htmls.push h.asString
 
   let blocks := String.intercalate "\n" htmls.toList
   let docsJson := st.dedup.docJson.compress
-  IO.FS.writeFile outPath (page blocks docsJson enhance)
+  -- An explicit --label wins; otherwise an anchor selection labels itself.
+  let label := labelText.orElse (fun _ => anchorName)
+  IO.FS.writeFile outPath (page blocks docsJson enhance label)
   IO.println s!"render-snippet: wrote {htmls.size} block(s) to {outPath}"
   return 0

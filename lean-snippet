@@ -8,6 +8,8 @@
 #   -o, --output NAME   Base name for the output file (default: lean-code)
 #   --multi-blocks      One box per top-level command (default: a single box)
 #   --anchor NAME       Show only the region marked -- ANCHOR: NAME / -- ANCHOR_END: NAME
+#   --label TEXT        Caption above the snippet (defaults to the anchor name)
+#   --no-output         Hide #eval / #check output (shown at the block bottom by default)
 #   --no-enhance        Skip GitHub colors + Copy / Try-it buttons
 #   --setup             First-time setup: build the renderer
 #
@@ -33,7 +35,9 @@ SCRATCH=""
 BASE="lean-code"
 MULTI_BLOCKS=""
 NO_ENHANCE=""
+NO_OUTPUT=""
 ANCHOR=""
+LABEL=()
 SETUP=false
 
 while [[ $# -gt 0 ]]; do
@@ -42,7 +46,9 @@ while [[ $# -gt 0 ]]; do
     -o|--output)     BASE="$2"; shift 2 ;;
     --multi-blocks)  MULTI_BLOCKS="--multi-blocks"; shift ;;
     --no-enhance)    NO_ENHANCE="--no-enhance"; shift ;;
+    --no-output)     NO_OUTPUT="--no-output"; shift ;;
     --anchor)        ANCHOR="--anchor $2"; shift 2 ;;
+    --label)         LABEL=(--label "$2"); shift 2 ;;
     --*)             echo "Unknown option: $1" >&2; exit 1 ;;
     *)               SCRATCH="$1"; shift ;;
   esac
@@ -99,7 +105,7 @@ HL_JSON=".lake/build/highlighted/Snippet.json"
 # ── 3. Render the JSON to a single self-contained HTML file ───────────────────
 echo "lean-snippet: rendering ..."
 OUT="${BASE}.html"
-.lake/build/bin/render-snippet "$HL_JSON" "$SNIPPETS_HOME/$OUT" $MULTI_BLOCKS $NO_ENHANCE $ANCHOR
+.lake/build/bin/render-snippet "$HL_JSON" "$SNIPPETS_HOME/$OUT" $MULTI_BLOCKS $NO_ENHANCE $NO_OUTPUT $ANCHOR "${LABEL[@]}"
 [[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
 echo "  → $USER_CWD/$OUT"
 echo "lean-snippet: done!"
