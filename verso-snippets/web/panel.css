@@ -85,6 +85,40 @@ body.slide {
 .info-panel .hl.lean {
   white-space: pre-wrap;
 }
+/* A clicked tactic shows its proof state — a table layout (names right, colons
+   aligned). Override the pre-wrap (which would stretch the cells into random
+   gaps), drop the inner box, and keep it tight + left-aligned. */
+.info-panel .tactic-state {
+  display: block !important;
+  position: static;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+/* Strip Verso's box + table alignment so everything is plain left-aligned text. */
+.info-panel .tactic-state,
+.info-panel .tactic-state * {
+  white-space: normal;
+  border: none !important;
+  background: transparent !important;
+  text-align: left !important;
+}
+/* Each hypothesis on its own line as a plain "name : type", left-aligned —
+   override Verso's table-row/table-cell so the names don't sit in a wide column. */
+.info-panel .hypotheses {
+  display: block !important;
+}
+.info-panel .hypothesis {
+  display: block !important;
+}
+.info-panel .hypothesis > * {
+  display: inline !important;
+}
+.info-panel .hypotheses .colon {
+  min-width: 0 !important;
+  margin: 0 0.3em;
+}
 /* The type signature line. */
 .info-panel .hl.lean > code:not(.docstring) {
   display: block;
@@ -138,11 +172,8 @@ body.slide-click code.hl.lean.block .tactic-toggle {
 body.slide-click code.hl.lean.block .tactic-state {
   display: none !important;
 }
-/* Hide the inline toggle affordance (a bordered `label::after` circle) — in
-   click mode the proof state opens in the panel instead. */
-body.slide-click code.hl.lean.block .tactic > label::after {
-  display: none;
-}
+/* Keep the little toggle circle as a visual cue that a tactic is clickable —
+   clicking opens its goal in the panel (the inline state stays hidden above). */
 
 /* Stack vertically on narrow screens; the panel returns to normal flow with a
    capped height, and the seam moves to its top. */

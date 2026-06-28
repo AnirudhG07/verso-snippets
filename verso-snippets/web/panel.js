@@ -59,33 +59,55 @@ window.addEventListener("load", () => {
     });
   };
 
+  // The HTML to show in the panel for a clicked element.
+  const infoHtml = (el) => {
+    if (el.classList.contains("tactic")) {
+      const st = el.querySelector(":scope > .tactic-state");
+      return st ? st.outerHTML : ""; // keep the .tactic-state wrapper for layout
+    }
+    if (el.classList.contains("has-info")) {
+      const info = el.querySelector(":scope > .hover-container > .hover-info");
+      return info ? info.innerHTML : "";
+    }
+    // A name token: show "Name : Type" (name keeps its colour) then the docs.
+    const doc = docs[el.getAttribute("data-verso-hover")] || "";
+    const wrap = document.createElement("div");
+    wrap.innerHTML = doc;
+    const sig = wrap.querySelector("code:not(.docstring)");
+    const name = el.textContent.trim();
+    if (sig && name && !sig.textContent.trim().startsWith(name)) {
+      sig.innerHTML = el.outerHTML + " : " + sig.innerHTML;
+    }
+    return wrap.innerHTML;
+  };
+
+  // Clicking cycles outward→inward: a tactic's goal first, then the token under
+  // the cursor. Clicking the same spot again steps to the next inner element.
+  let lastInner = null;
+  let cycleIdx = 0;
   document.querySelectorAll("code.hl.lean.block").forEach((block) => {
     block.addEventListener("click", (event) => {
-      const infoEl = event.target.closest(
-        ".tactic, .has-info, .token[data-verso-hover]"
-      );
+      const chain = [];
+      let el = event.target;
+      while (el && el !== block) {
+        if (el.matches && el.matches(".tactic, .has-info, .token[data-verso-hover]"))
+          chain.push(el);
+        el = el.parentElement;
+      }
       const tok = event.target.closest(".token[data-binding]");
       litBinding(block, tok && tok.dataset.binding);
-
-      if (infoEl && block.contains(infoEl)) {
-        let html = "";
-        if (infoEl.classList.contains("tactic")) {
-          const st = infoEl.querySelector(":scope > .tactic-state");
-          html = st ? st.innerHTML : "";
-        } else if (infoEl.classList.contains("has-info")) {
-          const info = infoEl.querySelector(
-            ":scope > .hover-container > .hover-info"
-          );
-          html = info ? info.innerHTML : "";
-        } else {
-          html = docs[infoEl.getAttribute("data-verso-hover")] || "";
-        }
-        event.preventDefault();
-        select(infoEl);
-        setPanel(html);
-      } else {
-        select(tok);
+      if (!chain.length) return;
+      chain.reverse(); // outermost (tactic) first, innermost (token) last
+      const inner = chain[chain.length - 1];
+      if (inner === lastInner) cycleIdx = (cycleIdx + 1) % chain.length;
+      else {
+        lastInner = inner;
+        cycleIdx = 0;
       }
+      const sel = chain[cycleIdx];
+      event.preventDefault();
+      select(sel);
+      setPanel(infoHtml(sel));
     });
   });
 });
