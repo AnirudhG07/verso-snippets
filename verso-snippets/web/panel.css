@@ -11,7 +11,7 @@ body.slide {
   margin: 1.5em 0;
 }
 .snippet-layout > .lean-snippet {
-  flex: 2 1 0;
+  flex: 3 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -20,7 +20,7 @@ body.slide {
 /* The code box drops its own margin and its right edge, so it butts up against
    the panel; corners rounded on the left only. `min-width: 0` + `overflow-x`
    keep long lines scrolling INSIDE the box instead of pushing past the seam. */
-.snippet-layout > .lean-snippet > code.hl.lean.block {
+body.slide .snippet-layout > .lean-snippet > code.hl.lean.block {
   margin: 0;
   flex: 1 1 auto;
   min-width: 0;
@@ -34,7 +34,7 @@ body.slide {
 }
 /* The header sits above the code in the left column; its right edge meets the
    seam, so square that corner and drop its right border. */
-.snippet-layout > .lean-snippet > .snippet-header {
+body.slide .snippet-layout > .lean-snippet > .snippet-header {
   border-top-right-radius: 0;
   border-right: none;
 }
@@ -59,7 +59,8 @@ body.slide {
    selection never grows the box — it just scrolls within the same height. */
 .info-panel-cell {
   flex: 1 1 0;
-  min-width: 12rem;
+  min-width: 10.5rem;
+  max-width: 22rem;
   position: relative;
 }
 .info-panel {

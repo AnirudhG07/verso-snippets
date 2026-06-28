@@ -87,6 +87,8 @@ window.addEventListener("load", () => {
   let cycleIdx = 0;
   document.querySelectorAll("code.hl.lean.block").forEach((block) => {
     block.addEventListener("click", (event) => {
+      // Only act when the panel is showing (slide mode); inert in hover-only mode.
+      if (!document.body.classList.contains("slide")) return;
       const chain = [];
       let el = event.target;
       while (el && el !== block) {

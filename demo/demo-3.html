@@ -679,9 +679,8 @@ Some CSS frameworks customize details/summary in ways not compatible with Verso'
   border: 1px solid #d0d7de;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  padding: 5px 12px;
+  padding: 3px 12px;
   margin: 1.5em 0 0 0;
-  min-height: 1.6rem;
 }
 .snippet-title {
   font-size: 0.9rem;
@@ -691,6 +690,7 @@ Some CSS frameworks customize details/summary in ways not compatible with Verso'
 }
 .snippet-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 /* The code box joins the header below it: flat top corners, no gap. */
@@ -739,14 +739,15 @@ code.hl.lean.block {
   display: block;
   overflow-x: auto;
 }
-.snippet-actions button, .snippet-actions a {
-  display: inline-flex; align-items: center; gap: 4px;
+.snippet-actions button, .snippet-actions a, .snippet-actions summary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  box-sizing: border-box; height: 1.55rem; padding: 0 16px;
   background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
-  padding: 1px 11px; font-size: 0.88rem; line-height: 1.25; font-weight: 500; color: #24292f;
+  font-size: 0.85rem; line-height: 1; font-weight: 500; color: #24292f;
   text-decoration: none; font-family: "Helvetica Neue", Arial, sans-serif;
-  cursor: pointer; white-space: nowrap;
+  cursor: pointer; white-space: nowrap; transition: border-color 0.12s, background 0.12s;
 }
-.snippet-actions button:hover, .snippet-actions a:hover {
+.snippet-actions button:hover, .snippet-actions a:hover, .snippet-actions summary:hover {
   border-color: #0969da; color: #0969da; background: #f3f4f6;
 }
 
@@ -1038,20 +1039,27 @@ window.onload = () => {
 <script>
 window.addEventListener('load', () => {
   const actions = document.querySelector('.snippet-actions');
-  const blocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
-  if (!actions || !blocks.length) return;
-  const code = blocks.map(b => b.innerText).join('\n\n');
+  if (!actions) return;
+  const allBlocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
+  if (!allBlocks.length) return;
+  // Copy the currently-visible code (the hidden content variant is skipped).
+  const codeOf = () => Array.from(document.querySelectorAll('code.hl.lean.block'))
+    .filter(b => b.offsetParent !== null).map(b => b.innerText).join('\n\n')
+    || allBlocks.map(b => b.innerText).join('\n\n');
   const copyBtn = document.createElement('button');
   copyBtn.textContent = 'Copy';
   copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(code).then(() => {
+    navigator.clipboard.writeText(codeOf()).then(() => {
       copyBtn.textContent = 'Copied!';
       setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
     });
   });
   const tryBtn = document.createElement('a');
-  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(code);
-  tryBtn.target = '_blank'; tryBtn.textContent = 'Try it!';
+  tryBtn.textContent = 'Try it!'; tryBtn.target = '_blank';
+  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(codeOf());
+  tryBtn.addEventListener('click', () => {
+    tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(codeOf());
+  });
   actions.appendChild(copyBtn); actions.appendChild(tryBtn);
 });
 </script>

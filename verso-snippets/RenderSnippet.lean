@@ -185,14 +185,15 @@ code.hl.lean.block {
   display: block;
   overflow-x: auto;
 }
-.snippet-actions button, .snippet-actions a {
-  display: inline-flex; align-items: center; gap: 4px;
+.snippet-actions button, .snippet-actions a, .snippet-actions summary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  box-sizing: border-box; height: 1.55rem; padding: 0 16px;
   background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
-  padding: 1px 11px; font-size: 0.88rem; line-height: 1.25; font-weight: 500; color: #24292f;
+  font-size: 0.85rem; line-height: 1; font-weight: 500; color: #24292f;
   text-decoration: none; font-family: \"Helvetica Neue\", Arial, sans-serif;
-  cursor: pointer; white-space: nowrap;
+  cursor: pointer; white-space: nowrap; transition: border-color 0.12s, background 0.12s;
 }
-.snippet-actions button:hover, .snippet-actions a:hover {
+.snippet-actions button:hover, .snippet-actions a:hover, .snippet-actions summary:hover {
   border-color: #0969da; color: #0969da; background: #f3f4f6;
 }
 "
@@ -200,20 +201,27 @@ code.hl.lean.block {
 def enhanceJs : String := "
 window.addEventListener('load', () => {
   const actions = document.querySelector('.snippet-actions');
-  const blocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
-  if (!actions || !blocks.length) return;
-  const code = blocks.map(b => b.innerText).join('\\n\\n');
+  if (!actions) return;
+  const allBlocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
+  if (!allBlocks.length) return;
+  // Copy the currently-visible code (the hidden content variant is skipped).
+  const codeOf = () => Array.from(document.querySelectorAll('code.hl.lean.block'))
+    .filter(b => b.offsetParent !== null).map(b => b.innerText).join('\\n\\n')
+    || allBlocks.map(b => b.innerText).join('\\n\\n');
   const copyBtn = document.createElement('button');
   copyBtn.textContent = 'Copy';
   copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(code).then(() => {
+    navigator.clipboard.writeText(codeOf()).then(() => {
       copyBtn.textContent = 'Copied!';
       setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
     });
   });
   const tryBtn = document.createElement('a');
-  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(code);
-  tryBtn.target = '_blank'; tryBtn.textContent = 'Try it!';
+  tryBtn.textContent = 'Try it!'; tryBtn.target = '_blank';
+  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(codeOf());
+  tryBtn.addEventListener('click', () => {
+    tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(codeOf());
+  });
   actions.appendChild(copyBtn); actions.appendChild(tryBtn);
 });
 "
@@ -231,9 +239,8 @@ def labelCss : String := "
   border: 1px solid #d0d7de;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  padding: 5px 12px;
+  padding: 3px 12px;
   margin: 1.5em 0 0 0;
-  min-height: 1.6rem;
 }
 .snippet-title {
   font-size: 0.9rem;
@@ -243,6 +250,7 @@ def labelCss : String := "
 }
 .snippet-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 /* The code box joins the header below it: flat top corners, no gap. */
@@ -260,6 +268,8 @@ def escapeLabel (s : String) : String :=
 /-- Click-to-panel infoview JS/CSS for `--slide` mode (vendored in `web/`). -/
 def panelJs  : String := include_str "web/panel.js"
 def panelCss : String := include_str "web/panel.css"
+def switcherJs  : String := include_str "web/switcher.js"
+def switcherCss : String := include_str "web/switcher.css"
 
 -- ── Literate-mode assets: KaTeX (math) + prose styling ─────────────────────────
 
@@ -340,50 +350,101 @@ def hoverScripts : String :=
   "    }\n    return _origFetch.call(this, url, ...args);\n  };\n})();\n</script>\n" ++
   "<script>" ++ highlightingJs ++ "</script>\n"
 
-/-- Assemble the full self-contained HTML page.
-    `slide`: `none` = full-width code with hover tooltips; `some false` = click-only
-    panel (no hovers); `some true` = panel on click AND hover tooltips ("both"). -/
-def page (blocks : String) (docsJson : String) (enhance : Bool) (label : Option String)
-    (slide : Option Bool) (literate : Bool) : String :=
-  let isSlide := slide.isSome
-  let both    := slide == some true
-  let bodyClass :=
-    if isSlide then (if both then "slide slide-both" else "slide slide-click") else ""
-  let head :=
-    "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n" ++
-    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" ++
-    "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css\" type=\"text/css\">\n" ++
-    "<style>\nbody { background:#fff; color:#222; max-width:860px; margin:0 auto; padding:1rem 2rem; }\n" ++
-    highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++
-    (if enhance then enhanceCss else "") ++ "\n" ++
-    (if isSlide then panelCss else "") ++ "\n" ++
-    (if literate then katexCss ++ "\n" ++ proseCss else "") ++ "\n</style>\n</head>\n" ++
-    (if isSlide then "<body class=\"" ++ bodyClass ++ "\">\n" else "<body>\n")
-  -- A permanent header (title + Copy/Try-it) whenever buttons or a label exist.
+/-- Assemble the full self-contained HTML page. With `switcher`, both content
+    variants are embedded and a header dropdown toggles Hover / Click panel /
+    Literate live (the flags set the initial state). Otherwise a single mode is
+    emitted (`slide`/`literate` decide which). -/
+def page (blocks : String) (litBlocks : Option String) (docsJson : String) (enhance : Bool)
+    (label : Option String) (slide : Option Bool) (literate : Bool) (switcher : Bool)
+    (hasMath : Bool) : String :=
   let titleText := label.map escapeLabel |>.getD ""
-  let headerHtml :=
-    if enhance || label.isSome then
+  if switcher then
+    -- Only embed the literate variant / KaTeX when the file actually has them.
+    let hasLit := litBlocks.isSome
+    let initHover := slide == none || slide == some true
+    let initSlide := slide.isSome
+    -- A file with prose starts in the literate (prose) view by default — the raw
+    -- `/-! … -/` source isn't the nice view. `--no-switcher` keeps single mode.
+    let initLit := hasLit
+    let bodyClass :=
+      (if initHover then "mode-hover " else "") ++
+      (if initLit then "lit-view " else "") ++
+      (if initSlide then (if initHover then "slide slide-both" else "slide slide-click") else "")
+    let head :=
+      "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n" ++
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" ++
+      "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css\" type=\"text/css\">\n" ++
+      "<style>\nbody { background:#fff; color:#222; max-width:1180px; margin:0 auto; padding:1rem 2rem; }\n" ++
+      highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++ enhanceCss ++ "\n" ++ panelCss ++ "\n" ++
+      (if hasMath then katexCss ++ "\n" else "") ++ (if hasLit then proseCss ++ "\n" else "") ++
+      switcherCss ++ "\n</style>\n</head>\n" ++
+      "<body class=\"" ++ bodyClass.trim ++ "\">\n"
+    let cb := fun (val txt : String) (on : Bool) =>
+      "<label><input type=\"checkbox\" class=\"mode-cb\" value=\"" ++ val ++ "\"" ++
+        (if on then " checked" else "") ++ "> " ++ txt ++ "</label>"
+    let dropdown :=
+      "<details class=\"mode-switch\"><summary>View</summary><div class=\"mode-menu\">" ++
+        cb "hover" "Hover" initHover ++ cb "slide" "Infoview" initSlide ++
+        (if hasLit then cb "literate" "Literate" initLit else "") ++ "</div></details>"
+    let header :=
       "<div class=\"snippet-header\"><span class=\"snippet-title\">" ++ titleText ++
-        "</span><span class=\"snippet-actions\"></span></div>\n"
-    else ""
-  let snippet := "<div class=\"lean-snippet\">\n" ++ headerHtml ++ blocks ++ "\n</div>\n"
-  let body :=
-    if isSlide then
+        "</span><span class=\"snippet-actions\">" ++ dropdown ++ "</span></div>\n"
+    -- Plain code blocks stay DIRECT children of `.lean-snippet` so the header/panel
+    -- CSS (`.snippet-header + code`, `.lean-snippet > code`) keeps working; only the
+    -- literate variant is wrapped, shown via `body.lit-view`.
+    let snippet :=
+      "<div class=\"lean-snippet\">\n" ++ header ++ blocks ++ "\n" ++
+        (if hasLit then
+          "<div class=\"snippet-content literate\">\n" ++ (litBlocks.getD "") ++ "\n</div>\n"
+         else "") ++ "</div>\n"
+    let body :=
       "<div class=\"snippet-layout\">\n" ++ snippet ++
         "<div class=\"info-panel-cell\"><aside class=\"info-panel\"></aside></div>\n</div>\n"
-    else snippet
-  let scripts :=
-    "<script>const _versoDocsJson = " ++ docsJson ++ ";</script>\n" ++
-    -- click-only slides skip the hover stack but still need `marked` for docstrings;
-    -- "both" and normal mode include the full hover stack (which has `marked`).
-    (if isSlide && !both then "<script>" ++ marked ++ "</script>\n" else hoverScripts) ++
-    (if isSlide then "<script>" ++ panelJs ++ "</script>\n" else "") ++
-    (if literate then "<script>" ++ katexJs ++ "</script>\n<script>" ++ katexMath ++ "</script>\n" else "") ++
-    (if enhance then "<script>" ++ enhanceJs ++ "</script>\n" else "")
-  head ++ body ++ scripts ++ "</body>\n</html>\n"
+    let scripts :=
+      "<script>const _versoDocsJson = " ++ docsJson ++ ";</script>\n" ++
+      hoverScripts ++
+      "<script>" ++ panelJs ++ "</script>\n" ++
+      (if hasMath then "<script>" ++ katexJs ++ "</script>\n<script>" ++ katexMath ++ "</script>\n" else "") ++
+      "<script>" ++ switcherJs ++ "</script>\n" ++
+      (if enhance then "<script>" ++ enhanceJs ++ "</script>\n" else "")
+    head ++ body ++ scripts ++ "</body>\n</html>\n"
+  else
+    let isSlide := slide.isSome
+    let both    := slide == some true
+    let bodyClass :=
+      if isSlide then (if both then "slide slide-both" else "slide slide-click") else ""
+    let head :=
+      "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n" ++
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" ++
+      "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css\" type=\"text/css\">\n" ++
+      "<style>\nbody { background:#fff; color:#222; max-width:860px; margin:0 auto; padding:1rem 2rem; }\n" ++
+      highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++
+      (if enhance then enhanceCss else "") ++ "\n" ++
+      (if isSlide then panelCss else "") ++ "\n" ++
+      (if literate && hasMath then katexCss ++ "\n" else "") ++
+      (if literate then proseCss else "") ++ "\n</style>\n</head>\n" ++
+      (if isSlide then "<body class=\"" ++ bodyClass ++ "\">\n" else "<body>\n")
+    let headerHtml :=
+      if enhance || label.isSome then
+        "<div class=\"snippet-header\"><span class=\"snippet-title\">" ++ titleText ++
+          "</span><span class=\"snippet-actions\"></span></div>\n"
+      else ""
+    let snippet := "<div class=\"lean-snippet\">\n" ++ headerHtml ++ blocks ++ "\n</div>\n"
+    let body :=
+      if isSlide then
+        "<div class=\"snippet-layout\">\n" ++ snippet ++
+          "<div class=\"info-panel-cell\"><aside class=\"info-panel\"></aside></div>\n</div>\n"
+      else snippet
+    let scripts :=
+      "<script>const _versoDocsJson = " ++ docsJson ++ ";</script>\n" ++
+      (if isSlide && !both then "<script>" ++ marked ++ "</script>\n" else hoverScripts) ++
+      (if isSlide then "<script>" ++ panelJs ++ "</script>\n" else "") ++
+      (if literate && hasMath then "<script>" ++ katexJs ++ "</script>\n<script>" ++ katexMath ++ "</script>\n" else "") ++
+      (if enhance then "<script>" ++ enhanceJs ++ "</script>\n" else "")
+    head ++ body ++ scripts ++ "</body>\n</html>\n"
 
 def usage : String :=
-  "Usage: render-snippet <input.json> <output.html> [--multi-blocks] [--no-enhance] [--no-output] [--literate] [--slide|--slide=click|--slide=both] [--anchor NAME] [--label TEXT]"
+  "Usage: render-snippet <input.json> <output.html> [--no-switcher] [--multi-blocks] [--no-enhance] [--no-output] [--literate] [--slide|--slide=click|--slide=both] [--anchor NAME] [--label TEXT]"
 
 /-- Strip `-- ANCHOR:`/`-- ANCHOR_END:` markers from highlighted code, falling
     back to the original on any anchor-parse error. -/
@@ -391,6 +452,48 @@ def stripAnchors (hl : Highlighted) : Highlighted :=
   match hl.anchored with
   | .ok a  => a.code
   | .error _ => hl
+
+/-- Build the non-literate code blocks (one box, or one per command with
+    `multiBlocks`), threading the hover state. Anchors are not applied here. -/
+def buildPlainBlocks (items : Array ModuleItem) (showOutput multiBlocks : Bool)
+    (st0 : Verso.Code.Hover.State Html) : Array String × Verso.Code.Hover.State Html := Id.run do
+  let display := items.filter (fun it => !(skipKinds.contains it.kind))
+  let nonHeader := items.filter (fun it => it.kind != `Lean.Parser.Module.header)
+  -- `/-! … -/` module docs are highlighted as `unknown` tokens (so they'd show
+  -- red/black). In the plain view render them as plain comment text → green.
+  let codeFor := fun (it : ModuleItem) =>
+    if it.kind == `Lean.Parser.Command.moduleDoc then Highlighted.text it.code.toString
+    else stripAnchors it.code
+  let codes : Array Highlighted :=
+    if multiBlocks then display.map codeFor
+    else #[Highlighted.seq (nonHeader.map codeFor)]
+  let mut st := st0
+  let mut htmls : Array String := #[]
+  for code in codes do
+    let (h, st') := renderBlock showOutput code st
+    st := st'; htmls := htmls.push h.asString
+  return (htmls, st)
+
+/-- Build literate blocks: `/-! … -/` module docs → Markdown prose, interleaved
+    with code runs in source order. -/
+def buildLiterateBlocks (items : Array ModuleItem) (showOutput : Bool)
+    (st0 : Verso.Code.Hover.State Html) : Array String × Verso.Code.Hover.State Html := Id.run do
+  let mut st := st0
+  let mut htmls : Array String := #[]
+  let mut run : Array Highlighted := #[]
+  for it in items do
+    if it.kind == `Lean.Parser.Command.moduleDoc then
+      if !run.isEmpty then
+        let (h, st') := renderBlock showOutput (Highlighted.seq run) st
+        st := st'; htmls := htmls.push h.asString; run := #[]
+      let (proseStr, st') := proseHtml (stripModuleDoc it.code.toString) st
+      st := st'; htmls := htmls.push ("<div class=\"prose\">\n" ++ proseStr ++ "\n</div>")
+    else if !(skipKinds.contains it.kind) then
+      run := run.push (stripAnchors it.code)
+  if !run.isEmpty then
+    let (h, st') := renderBlock showOutput (Highlighted.seq run) st
+    st := st'; htmls := htmls.push h.asString
+  return (htmls, st)
 
 def main (args : List String) : IO UInt32 := do
   -- Parse: positional input/output, plus flags. `--anchor` takes a value.
@@ -401,6 +504,7 @@ def main (args : List String) : IO UInt32 := do
   -- none = off, some false = click-only, some true = both (click + hover)
   let mut slide : Option Bool := none
   let mut literate := false
+  let mut switcher := true   -- the mode switcher is on by default
   let mut anchorName : Option String := none
   let mut labelText : Option String := none
   let mut rest := args
@@ -410,6 +514,8 @@ def main (args : List String) : IO UInt32 := do
     | "--no-enhance"   :: more => enhance := false;    rest := more
     | "--no-output"    :: more => showOutput := false; rest := more
     | "--literate"     :: more => literate := true;    rest := more
+    | "--switcher"     :: more => switcher := true;    rest := more
+    | "--no-switcher"  :: more => switcher := false;   rest := more
     | "--slide"        :: more => slide := some false; rest := more
     | "--slide=click"  :: more => slide := some false; rest := more
     | "--slide=both"   :: more => slide := some true;  rest := more
@@ -437,51 +543,51 @@ def main (args : List String) : IO UInt32 := do
     IO.eprintln "render-snippet: no displayable code found in input"
     return 1
 
+  -- `--anchor` focuses a single region, and `--no-enhance` means bare Verso
+  -- styling (the switcher's header/colors are themselves enhancements), so both
+  -- force single-mode.
+  let useSwitcher := switcher && anchorName.isNone && enhance
+  -- Literate prose / KaTeX are only worth their bytes when the file uses them.
+  let hasProse := mod.items.any (fun it => it.kind == `Lean.Parser.Command.moduleDoc)
+  let hasMath := mod.items.any (fun it =>
+    it.kind == `Lean.Parser.Command.moduleDoc && it.code.toString.any (· == '$'))
+
   let mut st : Verso.Code.Hover.State Html := {}
-  let mut htmls : Array String := #[]
+  let mut plainHtmls : Array String := #[]
+  let mut litHtmls : Array String := #[]
+  let mut haveLit := false
 
-  if literate then
-    -- Interleave prose (`/-! … -/` module docs → Markdown) and code runs in
-    -- source order; `--anchor`/`--multi-blocks` don't apply here.
-    let mut run : Array Highlighted := #[]
-    for it in mod.items do
-      if it.kind == `Lean.Parser.Command.moduleDoc then
-        if !run.isEmpty then
-          let (h, st') := renderBlock showOutput (Highlighted.seq run) st
-          st := st'; htmls := htmls.push h.asString; run := #[]
-        let (proseStr, st') := proseHtml (stripModuleDoc it.code.toString) st
-        st := st'
-        htmls := htmls.push ("<div class=\"prose\">\n" ++ proseStr ++ "\n</div>")
-      else if !(skipKinds.contains it.kind) then
-        run := run.push (stripAnchors it.code)
-    if !run.isEmpty then
-      let (h, st') := renderBlock showOutput (Highlighted.seq run) st
-      st := st'; htmls := htmls.push h.asString
+  if useSwitcher then
+    -- Render the plain variant always; the literate one only when there is prose
+    -- to render differently (otherwise the two are identical — no point doubling).
+    let (p, st1) := buildPlainBlocks mod.items showOutput multiBlocks st
+    plainHtmls := p; st := st1
+    if hasProse then
+      let (l, st2) := buildLiterateBlocks mod.items showOutput st
+      litHtmls := l; st := st2; haveLit := true
+  else if literate then
+    let (l, st') := buildLiterateBlocks mod.items showOutput st
+    plainHtmls := l; st := st'
   else
-    -- Which highlighted fragments become code blocks. Output placement happens
-    -- later in `renderBlock` (line-by-line), so this stays structural.
-    let codes : Array Highlighted ←
-      match anchorName with
-      | some name =>
-        match (Highlighted.seq (anchorItems.map (·.code))).anchored with
-        | .error e => do IO.eprintln s!"render-snippet: anchor error: {e}"; return 1
-        | .ok a =>
-          match a.anchors[name]? with
-          | some hl => pure #[hl]
-          | none    => do
-            IO.eprintln s!"render-snippet: no anchor named '{name}'"; return 1
-      | none =>
-        if multiBlocks then pure (displayItems.map (fun it => stripAnchors it.code))
-        else pure #[stripAnchors (Highlighted.seq (anchorItems.map (·.code)))]
-    for code in codes do
-      let (h, st') := renderBlock showOutput code st
-      st := st'
-      htmls := htmls.push h.asString
+    match anchorName with
+    | some name =>
+      match (Highlighted.seq (anchorItems.map (·.code))).anchored with
+      | .error e => do IO.eprintln s!"render-snippet: anchor error: {e}"; return 1
+      | .ok a =>
+        match a.anchors[name]? with
+        | some hl =>
+          let (h, st') := renderBlock showOutput hl st
+          st := st'; plainHtmls := #[h.asString]
+        | none => do IO.eprintln s!"render-snippet: no anchor named '{name}'"; return 1
+    | none =>
+      let (p, st') := buildPlainBlocks mod.items showOutput multiBlocks st
+      plainHtmls := p; st := st'
 
-  let blocks := String.intercalate "\n" htmls.toList
+  let blocks := String.intercalate "\n" plainHtmls.toList
+  let litBlocks := if haveLit then some (String.intercalate "\n" litHtmls.toList) else none
   let docsJson := st.dedup.docJson.compress
-  -- An explicit --label wins; otherwise an anchor selection labels itself.
   let label := labelText.orElse (fun _ => anchorName)
-  IO.FS.writeFile outPath (page blocks docsJson enhance label slide literate)
-  IO.println s!"render-snippet: wrote {htmls.size} block(s) to {outPath}"
+  IO.FS.writeFile outPath
+    (page blocks litBlocks docsJson enhance label slide literate useSwitcher hasMath)
+  IO.println s!"render-snippet: wrote {plainHtmls.size + litHtmls.size} block(s) to {outPath}"
   return 0

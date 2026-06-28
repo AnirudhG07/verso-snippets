@@ -9,7 +9,11 @@
 #   --multi-blocks      One box per top-level command (default: a single box)
 #   --anchor NAME       Show only the region marked -- ANCHOR: NAME / -- ANCHOR_END: NAME
 #   --label TEXT        Caption above the snippet (defaults to the anchor name)
-#   --literate          Render /-! … -/ blocks as prose (Markdown + \$LaTeX\$) between the code
+#   --literate          Start in literate mode: /-! … -/ blocks as prose (Markdown + \$LaTeX\$)
+#   --no-switcher       Emit a single fixed mode instead of the default "View" switcher
+#
+# By default the output has a "View" dropdown (Hover / Infoview / Literate) you can
+# toggle live; a file with /-! … -/ prose starts in Literate view. --anchor forces single mode.
 #   --slide[=click|both]  Click a name/tactic for info in a right-side panel; =both keeps hovers too
 #   --no-output         Hide #eval / #check output (shown at the block bottom by default)
 #   --no-enhance        Skip GitHub colors + Copy / Try-it buttons
@@ -40,6 +44,7 @@ NO_ENHANCE=""
 NO_OUTPUT=""
 SLIDE=""
 LITERATE=""
+NO_SWITCHER=""
 ANCHOR=""
 LABEL=()
 SETUP=false
@@ -52,6 +57,7 @@ while [[ $# -gt 0 ]]; do
     --no-enhance)    NO_ENHANCE="--no-enhance"; shift ;;
     --no-output)     NO_OUTPUT="--no-output"; shift ;;
     --literate)      LITERATE="--literate"; shift ;;
+    --no-switcher)   NO_SWITCHER="--no-switcher"; shift ;;
     --slide)         SLIDE="--slide"; shift ;;
     --slide=*)       SLIDE="$1"; shift ;;
     --anchor)        ANCHOR="--anchor $2"; shift 2 ;;
@@ -112,7 +118,7 @@ HL_JSON=".lake/build/highlighted/Snippet.json"
 # ── 3. Render the JSON to a single self-contained HTML file ───────────────────
 echo "lean-snippet: rendering ..."
 OUT="${BASE}.html"
-.lake/build/bin/render-snippet "$HL_JSON" "$SNIPPETS_HOME/$OUT" $MULTI_BLOCKS $NO_ENHANCE $NO_OUTPUT $LITERATE $SLIDE $ANCHOR "${LABEL[@]}"
+.lake/build/bin/render-snippet "$HL_JSON" "$SNIPPETS_HOME/$OUT" $NO_SWITCHER $MULTI_BLOCKS $NO_ENHANCE $NO_OUTPUT $LITERATE $SLIDE $ANCHOR "${LABEL[@]}"
 [[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
 echo "  → $USER_CWD/$OUT"
 echo "lean-snippet: done!"

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css" type="text/css">
 <style>
-body { background:#fff; color:#222; max-width:860px; margin:0 auto; padding:1rem 2rem; }
+body { background:#fff; color:#222; max-width:1180px; margin:0 auto; padding:1rem 2rem; }
 
 
 .hl.lean {
@@ -679,9 +679,8 @@ Some CSS frameworks customize details/summary in ways not compatible with Verso'
   border: 1px solid #d0d7de;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  padding: 5px 12px;
+  padding: 3px 12px;
   margin: 1.5em 0 0 0;
-  min-height: 1.6rem;
 }
 .snippet-title {
   font-size: 0.9rem;
@@ -691,6 +690,7 @@ Some CSS frameworks customize details/summary in ways not compatible with Verso'
 }
 .snippet-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 /* The code box joins the header below it: flat top corners, no gap. */
@@ -739,26 +739,323 @@ code.hl.lean.block {
   display: block;
   overflow-x: auto;
 }
-.snippet-actions button, .snippet-actions a {
-  display: inline-flex; align-items: center; gap: 4px;
+.snippet-actions button, .snippet-actions a, .snippet-actions summary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  box-sizing: border-box; height: 1.55rem; padding: 0 16px;
   background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
-  padding: 1px 11px; font-size: 0.88rem; line-height: 1.25; font-weight: 500; color: #24292f;
+  font-size: 0.85rem; line-height: 1; font-weight: 500; color: #24292f;
   text-decoration: none; font-family: "Helvetica Neue", Arial, sans-serif;
-  cursor: pointer; white-space: nowrap;
+  cursor: pointer; white-space: nowrap; transition: border-color 0.12s, background 0.12s;
 }
-.snippet-actions button:hover, .snippet-actions a:hover {
+.snippet-actions button:hover, .snippet-actions a:hover, .snippet-actions summary:hover {
   border-color: #0969da; color: #0969da; background: #f3f4f6;
 }
 
+/* `lean-snippet --slide`: the info panel is JOINED to the code block as one
+   unit, split by a thick blue seam. Click a name/tactic to fill the panel. */
 
+body.slide {
+  max-width: 1180px;
+}
+
+.snippet-layout {
+  display: flex;
+  align-items: stretch; /* code and panel share one height */
+  margin: 1.5em 0;
+}
+.snippet-layout > .lean-snippet {
+  flex: 3 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+/* The code box drops its own margin and its right edge, so it butts up against
+   the panel; corners rounded on the left only. `min-width: 0` + `overflow-x`
+   keep long lines scrolling INSIDE the box instead of pushing past the seam. */
+body.slide .snippet-layout > .lean-snippet > code.hl.lean.block {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  /* Flatten the right (seam) side only; top corners are handled by the header. */
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  scrollbar-width: thin; /* Firefox: a visible (not overlay) scrollbar */
+}
+/* The header sits above the code in the left column; its right edge meets the
+   seam, so square that corner and drop its right border. */
+body.slide .snippet-layout > .lean-snippet > .snippet-header {
+  border-top-right-radius: 0;
+  border-right: none;
+}
+/* Always show the horizontal scrollbar so it's obvious long lines scroll
+   (macOS otherwise hides the overlay scrollbar until you scroll). */
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar {
+  height: 9px;
+}
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar-thumb {
+  background: #c0c7d0;
+  border-radius: 5px;
+}
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar-track {
+  background: transparent;
+}
+.snippet-layout > .lean-snippet > .snippet-header {
+  margin-top: 0;
+}
+
+/* The panel lives in a relative cell that stretches to the code's height. The
+   panel itself is absolutely positioned and scrolls internally, so a long
+   selection never grows the box — it just scrolls within the same height. */
+.info-panel-cell {
+  flex: 1 1 0;
+  min-width: 10.5rem;
+  max-width: 22rem;
+  position: relative;
+}
+.info-panel {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-left: 4px solid #0969da; /* the blue seam joining code + panel */
+  border-radius: 0 8px 8px 0;
+  padding: 0.85rem 1rem;
+  font-size: 0.9em;
+  line-height: 1.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.info-panel-empty {
+  color: #6a737d;
+  font-style: italic;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+/* Panel content. Proof states carry token spans (so they stay fully colored);
+   type signatures are stored as plain text by Verso, shown in dark mono. */
+.info-panel .hl.lean {
+  white-space: pre-wrap;
+}
+/* A clicked tactic shows its proof state — a table layout (names right, colons
+   aligned). Override the pre-wrap (which would stretch the cells into random
+   gaps), drop the inner box, and keep it tight + left-aligned. */
+.info-panel .tactic-state {
+  display: block !important;
+  position: static;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+/* Strip Verso's box + table alignment so everything is plain left-aligned text. */
+.info-panel .tactic-state,
+.info-panel .tactic-state * {
+  white-space: normal;
+  border: none !important;
+  background: transparent !important;
+  text-align: left !important;
+}
+/* Each hypothesis on its own line as a plain "name : type", left-aligned —
+   override Verso's table-row/table-cell so the names don't sit in a wide column. */
+.info-panel .hypotheses {
+  display: block !important;
+}
+.info-panel .hypothesis {
+  display: block !important;
+}
+.info-panel .hypothesis > * {
+  display: inline !important;
+}
+.info-panel .hypotheses .colon {
+  min-width: 0 !important;
+  margin: 0 0.3em;
+}
+/* The type signature line. */
+.info-panel .hl.lean > code:not(.docstring) {
+  display: block;
+  color: #0550ae;
+  font-weight: 500;
+}
+/* Divider between the type and its docstring. */
+.info-panel .sep {
+  display: block;
+  height: 1px;
+  background: #d0d7de;
+  margin: 0.6rem 0;
+}
+/* Rendered docstring prose. */
+.info-panel .docstring-rendered {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: normal;
+  color: #24292f;
+}
+.info-panel .docstring-rendered :first-child { margin-top: 0; }
+.info-panel .docstring-rendered :last-child { margin-bottom: 0; }
+.info-panel .docstring-rendered code {
+  background: #eef1f5;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #0550ae;
+}
+
+/* Clickable affordances + selection / occurrence feedback. */
+code.hl.lean.block .token[data-verso-hover],
+code.hl.lean.block .token[data-binding],
+code.hl.lean.block .tactic > label {
+  cursor: pointer;
+}
+.panel-selected {
+  background: rgba(9, 105, 218, 0.18);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(9, 105, 218, 0.45);
+}
+.binding-hl {
+  background: rgba(255, 196, 0, 0.45);
+  border-radius: 3px;
+}
+
+/* Click-only mode routes the proof state to the panel (no inline toggle).
+   `--slide=both` keeps the inline hover/toggle working next to the panel. */
+body.slide-click code.hl.lean.block .tactic-toggle {
+  display: none;
+}
+body.slide-click code.hl.lean.block .tactic-state {
+  display: none !important;
+}
+/* Keep the little toggle circle as a visual cue that a tactic is clickable —
+   clicking opens its goal in the panel (the inline state stays hidden above). */
+
+/* Stack vertically on narrow screens; the panel returns to normal flow with a
+   capped height, and the seam moves to its top. */
+@media (max-width: 720px) {
+  .snippet-layout {
+    flex-direction: column;
+  }
+  .snippet-layout > .lean-snippet > code.hl.lean.block {
+    border-radius: 8px 8px 0 0;
+    border-right: 1px solid #d0d7de;
+    border-bottom: none;
+  }
+  .info-panel-cell {
+    min-height: 8rem;
+  }
+  .info-panel {
+    position: static;
+    border-left: 1px solid #d0d7de;
+    border-top: 4px solid #0969da;
+    border-radius: 0 0 8px 8px;
+    max-height: 24rem;
+  }
+}
+
+/* Header "View" dropdown that switches between Hover / Infoview / Literate.
+   All renderings are embedded; the dropdown flips body classes (and swaps the
+   visible content) — no regeneration. The plain code blocks are direct children
+   of `.lean-snippet`; only the literate variant is wrapped. */
+
+/* Flex so the <details> box is exactly the summary's height (no line-box
+   leading), keeping "View" vertically aligned with the Copy / Try-it buttons. */
+.mode-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+/* The summary inherits the shared `.snippet-actions` button look; only the
+   dropdown-specific bits live here. */
+.mode-switch > summary {
+  list-style: none;
+  margin: 0;
+}
+.mode-switch > summary::-webkit-details-marker {
+  display: none;
+}
+.mode-switch > summary::after {
+  content: "▾";
+  font-size: 0.7em;
+  margin-left: 1px;
+}
+.mode-switch[open] > summary {
+  border-color: #0969da;
+  color: #0969da;
+}
+.mode-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 50;
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 9.5rem;
+}
+.mode-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
+}
+.mode-menu label:hover {
+  background: #f3f4f6;
+}
+.mode-menu input {
+  margin: 0;
+}
+
+/* Literate variant: hidden by default, shown in lit-view; the plain code blocks
+   (direct children of .lean-snippet) hide in lit-view. */
+.snippet-content.literate {
+  display: none;
+}
+body.lit-view .snippet-content.literate {
+  display: block;
+}
+body.lit-view .lean-snippet > code.hl.lean.block {
+  display: none;
+}
+
+/* Suppress hover tooltips when Hover mode is off. */
+body:not(.mode-hover) .tippy-box {
+  display: none !important;
+}
+
+/* When Infoview is off, the panel hides and the code is full width with normal
+   (un-flattened) corners. */
+body:not(.slide) .info-panel-cell {
+  display: none;
+}
+body:not(.slide) .snippet-layout {
+  display: block;
+}
+body:not(.slide) .snippet-layout > .lean-snippet > code.hl.lean.block {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 8px;
+  border-right: 1px solid #d0d7de;
+}
 
 </style>
 </head>
-<body>
+<body class="mode-hover">
+<div class="snippet-layout">
 <div class="lean-snippet">
-<div class="snippet-header"><span class="snippet-title"></span><span class="snippet-actions"></span></div>
-<code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-0">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="unknown token" data-binding="">(</span><span class="var token" data-binding="var-_uniq.2" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="2">Nat</span><span class="unknown token" data-binding="">)</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:=</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="1">1</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∧</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∀</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.54" data-verso-hover="1">k</span><span class="unknown token" data-binding="">,</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="1">1</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.54" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.54" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="unknown token" data-binding="">¬</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.54" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∣</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2" data-verso-hover="1">n</span></code>
-<code class="hl lean block" data-lean-context="snippet"><span class="doc-comment token" data-binding="">/-- Every number larger than 1 has a prime factor -/</span><span class="inter-text">
+<div class="snippet-header"><span class="snippet-title"></span><span class="snippet-actions"><details class="mode-switch"><summary>View</summary><div class="mode-menu"><label><input type="checkbox" class="mode-cb" value="hover" checked> Hover</label><label><input type="checkbox" class="mode-cb" value="slide"> Infoview</label></div></details></span></div>
+<code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-0">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="unknown token" data-binding="">(</span><span class="var token" data-binding="var-_uniq.2" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="2">Nat</span><span class="unknown token" data-binding="">)</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:=</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="1">1</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∧</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∀</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.54" data-verso-hover="1">k</span><span class="unknown token" data-binding="">,</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="1">1</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.54" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.54" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="unknown token" data-binding="">¬</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.54" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∣</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2" data-verso-hover="1">n</span><span class="inter-text">
+
+</span><span class="doc-comment token" data-binding="">/-- Every number larger than 1 has a prime factor -/</span><span class="inter-text">
 </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.theorem-127">theorem</span><span class="inter-text"> </span><span class="const token" data-binding="const-exists_prime_factor" data-verso-hover="3">exists_prime_factor</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text">
     </span><span class="unknown token" data-binding="">∀</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.176" data-verso-hover="1">n</span><span class="unknown token" data-binding="">,</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="1">1</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.176" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∃</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.276" data-verso-hover="1">k</span><span class="unknown token" data-binding="">,</span><span class="inter-text"> </span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.276" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.276" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∣</span><span class="inter-text"> </span><span class="unknown token" data-binding="">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:=</span><span class="inter-text"> </span><span class="tactic"><label for="tactic-state-6973501355202963780-210-212-0"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Term.byTactic-210" data-verso-hover="4">by</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-6973501355202963780-210-212-0"><span class="tactic-state"><span class="goal"><span class="conclusion"><span class="prefix">⊢ </span><span class="type"><span class="unknown token" data-binding="">∀</span><span class="inter-text"> </span><span class="unknown token" data-binding="">(</span><span class="var token" data-binding="var-_uniq.10899" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="2">Nat</span><span class="unknown token" data-binding="">),</span><span class="inter-text"> </span><span class="unknown token" data-binding="">1</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10899" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="const token" data-binding="const-Exists" data-verso-hover="6">∃</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10901" data-verso-hover="1">k</span><span class="const token" data-binding="const-Exists" data-verso-hover="6">,</span><span class="inter-text"> </span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10901" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-And" data-verso-hover="7">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10901" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-Dvd.dvd" data-verso-hover="8">∣</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10899" data-verso-hover="1">n</span></span></span></span></span></span><span class="inter-text">
   </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Tactic.intro-215" data-verso-hover="9">intro</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="tactic"><label for="tactic-state-7588063765082131621-223-225-2"><span class="var token" data-binding="var-_uniq.300" data-verso-hover="10">h1</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-7588063765082131621-223-225-2"><span class="tactic-state"><span class="goal"><span class="hypotheses"><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Nat" data-verso-hover="2">Nat</span><span class="inter-text"></span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.300" data-verso-hover="10">h1</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="unknown token" data-binding="">1</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span></span><span class="conclusion"><span class="prefix">⊢ </span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Exists" data-verso-hover="6">∃</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="const token" data-binding="const-Exists" data-verso-hover="6">,</span><span class="inter-text"> </span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-And" data-verso-hover="7">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-Dvd.dvd" data-verso-hover="8">∣</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span></span></span></span><span class="inter-text">
@@ -769,7 +1066,12 @@ code.hl.lean.block {
   </span><span class="tactic"><label for="tactic-state-18216749427126009207-373-375-10"><span class="unknown token" data-binding="">·</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-18216749427126009207-373-375-10"><span class="tactic-state"><span class="goal"><span class="labeled-case" checked="checked"><label class="case-label"><input type="checkbox" id="--verso-unique-11" checked="checked"><span for="--verso-unique-11" class="goal-name">neg</span></label><span class="hypotheses"><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Nat" data-verso-hover="2">Nat</span><span class="inter-text"></span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.300" data-verso-hover="10">h1</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="unknown token" data-binding="">1</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.311" data-verso-hover="13">hprime</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Not" data-verso-hover="14">¬</span><span class="inter-text"></span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span></span><span class="conclusion"><span class="prefix">⊢ </span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Exists" data-verso-hover="6">∃</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="const token" data-binding="const-Exists" data-verso-hover="6">,</span><span class="inter-text"> </span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-And" data-verso-hover="7">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-Dvd.dvd" data-verso-hover="8">∣</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span></span></span></span></span><span class="inter-text"> </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Tactic.obtain-376" data-verso-hover="17">obtain</span><span class="inter-text"> </span><span class="unknown token" data-binding="">⟨</span><span class="var token" data-binding="var-_uniq.2005" data-verso-hover="1">k</span><span class="unknown token" data-binding="">,</span><span class="inter-text"> </span><span class="unknown token" data-binding="">_</span><span class="unknown token" data-binding="">⟩</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∃</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.687" data-verso-hover="1">k</span><span class="unknown token" data-binding="">,</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="1">1</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.687" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.687" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.687" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">∣</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:=</span><span class="inter-text"> </span><span class="tactic"><label for="tactic-state-3570600149517664662-434-436-12"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Term.byTactic-434" data-verso-hover="4">by</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-3570600149517664662-434-436-12"><span class="tactic-state"><span class="goal"><span class="hypotheses"><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Nat" data-verso-hover="2">Nat</span><span class="inter-text"></span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.300" data-verso-hover="10">h1</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="unknown token" data-binding="">1</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.311" data-verso-hover="13">hprime</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Not" data-verso-hover="14">¬</span><span class="inter-text"></span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span></span><span class="conclusion"><span class="prefix">⊢ </span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Exists" data-verso-hover="6">∃</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="const token" data-binding="const-Exists" data-verso-hover="6">,</span><span class="inter-text"> </span><span class="unknown token" data-binding="">1</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-And" data-verso-hover="7">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="const token" data-binding="const-And" data-verso-hover="7">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.10898" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-Dvd.dvd" data-verso-hover="8">∣</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span></span></span></span><span class="inter-text">
       </span><span class="tactic"><label for="tactic-state-7-443-461-14"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Tactic.simpAll-443" data-verso-hover="18">simp_all</span><span class="inter-text"> </span><span class="unknown token" data-binding="">[</span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="unknown token" data-binding="">]</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-7-443-461-14"><span class="tactic-state">All goals completed! 🐙</span></span><span class="inter-text">
     </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Tactic.obtain-466" data-verso-hover="17">obtain</span><span class="inter-text"> </span><span class="unknown token" data-binding="">⟨</span><span class="var token" data-binding="var-_uniq.2232" data-verso-hover="1">p</span><span class="unknown token" data-binding="">,</span><span class="inter-text"> </span><span class="unknown token" data-binding="">_</span><span class="unknown token" data-binding="">,</span><span class="inter-text"> </span><span class="unknown token" data-binding="">_</span><span class="unknown token" data-binding="">⟩</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:=</span><span class="inter-text"> </span><span class="const token" data-binding="const-exists_prime_factor" data-verso-hover="3">exists_prime_factor</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2005" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="unknown token" data-binding="">(</span><span class="tactic"><label for="tactic-state-5042866111045232620-513-515-15"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Term.byTactic-513" data-verso-hover="4">by</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-5042866111045232620-513-515-15"><span class="tactic-state"><span class="goal"><span class="hypotheses"><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Nat" data-verso-hover="2">Nat</span><span class="inter-text"></span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.300" data-verso-hover="10">h1</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="unknown token" data-binding="">1</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.311" data-verso-hover="13">hprime</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Not" data-verso-hover="14">¬</span><span class="inter-text"></span><span class="const token" data-binding="const-IsPrime" data-verso-hover="0">IsPrime</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.2005" data-verso-hover="1">k</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="const token" data-binding="const-Nat" data-verso-hover="2">Nat</span><span class="inter-text"></span></span></span><span class="hypothesis"><span class="name"><span class="var token" data-binding="var-_uniq.2006" data-verso-hover="19">h✝</span></span><span class="colon">:</span><span class="type"><span class="inter-text"></span><span class="unknown token" data-binding="">1</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2005" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-And" data-verso-hover="7">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2005" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span><span class="inter-text"> </span><span class="const token" data-binding="const-And" data-verso-hover="7">∧</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2005" data-verso-hover="1">k</span><span class="inter-text"> </span><span class="const token" data-binding="const-Dvd.dvd" data-verso-hover="8">∣</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.297" data-verso-hover="1">n</span></span></span></span><span class="conclusion"><span class="prefix">⊢ </span><span class="type"><span class="inter-text"></span><span class="unknown token" data-binding="">1</span><span class="inter-text"> </span><span class="const token" data-binding="const-LT.lt" data-verso-hover="5">&lt;</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.2005" data-verso-hover="1">k</span></span></span></span></span></span><span class="inter-text"> </span><span class="tactic"><label for="tactic-state-7-516-521-17"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Tactic.grind-516" data-verso-hover="15">grind</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-7-516-521-17"><span class="tactic-state">All goals completed! 🐙</span></span><span class="unknown token" data-binding="">)</span><span class="inter-text">
-    </span><span class="tactic"><label for="tactic-state-7-527-548-18"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Tactic.grind-527" data-verso-hover="15">grind</span><span class="inter-text"> </span><span class="unknown token" data-binding="">[</span><span class="const token" data-binding="const-Nat.dvd_trans" data-verso-hover="20">Nat.dvd_trans</span><span class="unknown token" data-binding="">]</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-7-527-548-18"><span class="tactic-state">All goals completed! 🐙</span></span></code>
+    </span><span class="tactic"><label for="tactic-state-7-527-548-18"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Tactic.grind-527" data-verso-hover="15">grind</span><span class="inter-text"> </span><span class="unknown token" data-binding="">[</span><span class="const token" data-binding="const-Nat.dvd_trans" data-verso-hover="20">Nat.dvd_trans</span><span class="unknown token" data-binding="">]</span></label><input type="checkbox" class="tactic-toggle" id="tactic-state-7-527-548-18"><span class="tactic-state">All goals completed! 🐙</span></span><span class="inter-text">
+
+
+</span><span class="unknown token" data-binding=""></span></code>
+</div>
+<div class="info-panel-cell"><aside class="info-panel"></aside></div>
 </div>
 <script>const _versoDocsJson = {"0":"<code>IsPrime (n : Nat) : Prop</code>","1":"<code>Nat</code>","10":"<code>1 &lt; n</code>","11":"<code class=\"docstring\">`by_cases (h :)? p` splits the main goal into two cases, assuming `h : p` in the first branch, and `h : ¬ p` in the second branch.\n</code>","12":"<code>IsPrime n</code>","13":"<code>¬IsPrime n</code>","14":"<code>Not (a : Prop) : Prop</code><span class=\"sep\"></span><code class=\"docstring\">`Not p`, or `¬p`, is the negation of `p`. It is defined to be `p → False`,\nso if your goal is `¬p` you can use `intro h` to turn the goal into\n`h : p ⊢ False`, and if you have `hn : ¬p` and `h : p` then `hn h : False`\nand `(hn h).elim` will prove anything.\nFor more information: [Propositional Logic](https://lean-lang.org/theorem_proving_in_lean4/propositions_and_proofs.html#propositional-logic)\n\n\nConventions for notations in identifiers:\n\n * The recommended spelling of `¬` in identifiers is `not`.</code>","15":"<code class=\"docstring\">`grind` is a tactic inspired by modern SMT solvers. **Picture a virtual whiteboard**:\nevery time grind discovers a new equality, inequality, or logical fact,\nit writes it on the board, groups together terms known to be equal,\nand lets each reasoning engine read from and contribute to the shared workspace.\nThese engines work together to handle equality reasoning, apply known theorems,\npropagate new facts, perform case analysis, and run specialized solvers\nfor domains like linear arithmetic and commutative rings.\n\nSee [the reference manual's chapter on `grind`](https://lean-lang.org/doc/reference/4.29.0/find/?domain=Verso.Genre.Manual.section&name=grind-tactic) for more information.\n\n`grind` is *not* designed for goals whose search space explodes combinatorially,\nthink large pigeonhole instances, graph‑coloring reductions, high‑order N‑queens boards,\nor a 200‑variable Sudoku encoded as Boolean constraints.  Such encodings require\n thousands (or millions) of case‑splits that overwhelm `grind`’s branching search.\n\nFor **bit‑level or combinatorial problems**, consider using **`bv_decide`**.\n`bv_decide` calls a state‑of‑the‑art SAT solver (CaDiCaL) and then returns a\n*compact, machine‑checkable certificate*.\n\n### Equality reasoning\n\n`grind` uses **congruence closure** to track equalities between terms.\nWhen two terms are known to be equal, congruence closure automatically deduces\nequalities between more complex expressions built from them.\nFor example, if `a = b`, then congruence closure will also conclude that `f a` = `f b`\nfor any function `f`. This forms the foundation for efficient equality reasoning in `grind`.\nHere is an example:\n```\nexample (f : Nat → Nat) (h : a = b) : f (f b) = f (f a) := by\n  grind\n```\n\n### Applying theorems using E-matching\n\nTo apply existing theorems, `grind` uses a technique called **E-matching**,\nwhich finds matches for known theorem patterns while taking equalities into account.\nCombined with congruence closure, E-matching helps `grind` discover\nnon-obvious consequences of theorems and equalities automatically.\n\nConsider the following functions and theorems:\n```\ndef f (a : Nat) : Nat :=\n  a + 1\n\ndef g (a : Nat) : Nat :=\n  a - 1\n\n@[grind =]\ntheorem gf (x : Nat) : g (f x) = x := by\n  simp [f, g]\n```\nThe theorem `gf` asserts that `g (f x) = x` for all natural numbers `x`.\nThe attribute `[grind =]` instructs `grind` to use the left-hand side of the equation,\n`g (f x)`, as a pattern for E-matching.\nSuppose we now have a goal involving:\n```\nexample {a b} (h : f b = a) : g a = b := by\n  grind\n```\nAlthough `g a` is not an instance of the pattern `g (f x)`,\nit becomes one modulo the equation `f b = a`. By substituting `a`\nwith `f b` in `g a`, we obtain the term `g (f b)`,\nwhich matches the pattern `g (f x)` with the assignment `x := b`.\nThus, the theorem `gf` is instantiated with `x := b`,\nand the new equality `g (f b) = b` is asserted.\n`grind` then uses congruence closure to derive the implied equality\n`g a = g (f b)` and completes the proof.\n\nThe pattern used to instantiate theorems affects the effectiveness of `grind`.\nFor example, the pattern `g (f x)` is too restrictive in the following case:\nthe theorem `gf` will not be instantiated because the goal does not even\ncontain the function symbol `g`.\n\n```\nexample (h₁ : f b = a) (h₂ : f c = a) : b = c := by\n  grind\n```\n\nYou can use the command `grind_pattern` to manually select a pattern for a given theorem.\nIn the following example, we instruct `grind` to use `f x` as the pattern,\nallowing it to solve the goal automatically:\n```\ngrind_pattern gf =&gt; f x\n\nexample {a b c} (h₁ : f b = a) (h₂ : f c = a) : b = c := by\n  grind\n```\nYou can enable the option `trace.grind.ematch.instance` to make `grind` print a\ntrace message for each theorem instance it generates.\n\nYou can also specify a **multi-pattern** to control when `grind` should apply a theorem.\nA multi-pattern requires that all specified patterns are matched in the current context\nbefore the theorem is applied. This is useful for theorems such as transitivity rules,\nwhere multiple premises must be simultaneously present for the rule to apply.\nThe following example demonstrates this feature using a transitivity axiom for a binary relation `R`:\n```\nopaque R : Int → Int → Prop\naxiom Rtrans {x y z : Int} : R x y → R y z → R x z\n\ngrind_pattern Rtrans =&gt; R x y, R y z\n\nexample {a b c d} : R a b → R b c → R c d → R a d := by\n  grind\n```\nBy specifying the multi-pattern `R x y, R y z`, we instruct `grind` to\ninstantiate `Rtrans` only when both `R x y` and `R y z` are available in the context.\nIn the example, `grind` applies `Rtrans` to derive `R a c` from `R a b` and `R b c`,\nand can then repeat the same reasoning to deduce `R a d` from `R a c` and `R c d`.\n\nInstead of using `grind_pattern` to explicitly specify a pattern,\nyou can use the `@[grind]` attribute or one of its variants, which will use a heuristic to\ngenerate a (multi-)pattern. The complete list is available in the reference manual. The main ones are:\n\n- `@[grind →]` will select a multi-pattern from the hypotheses of the theorem (i.e. it will use the theorem for forwards reasoning).\n  In more detail, it will traverse the hypotheses of the theorem from left-to-right, and each time it encounters a minimal indexable\n  (i.e. has a constant as its head) subexpression which \"covers\" (i.e. fixes the value of) an argument which was not\n  previously covered, it will add that subexpression as a pattern, until all arguments have been covered.\n- `@[grind ←]` will select a multi-pattern from the conclusion of theorem (i.e. it will use the theorem for backwards reasoning).\n  This may fail if not all the arguments to the theorem appear in the conclusion.\n- `@[grind]` will traverse the conclusion and then the hypotheses left-to-right, adding patterns as they increase the coverage,\n  stopping when all arguments are covered.\n- `@[grind =]` checks that the conclusion of the theorem is an equality, and then uses the left-hand-side of the equality as a pattern.\n  This may fail if not all of the arguments appear in the left-hand-side.\n\nHere is the previous example again but using the attribute `[grind →]`\n```\nopaque R : Int → Int → Prop\n@[grind →] axiom Rtrans {x y z : Int} : R x y → R y z → R x z\n\nexample {a b c d} : R a b → R b c → R c d → R a d := by\n  grind\n```\n\nTo control theorem instantiation and avoid generating an unbounded number of instances,\n`grind` uses a generation counter. Terms in the original goal are assigned generation zero.\nWhen `grind` applies a theorem using terms of generation `≤ n`, any new terms it creates\nare assigned generation `n + 1`. This limits how far the tactic explores when applying\ntheorems and helps prevent an excessive number of instantiations.\n\n#### Key options:\n- `grind (ematch := &lt;num&gt;)` controls the number of E-matching rounds.\n- `grind [&lt;name&gt;, ...]` instructs `grind` to use the declaration `name` during E-matching.\n- `grind only [&lt;name&gt;, ...]` is like `grind [&lt;name&gt;, ...]` but does not use theorems tagged with `@[grind]`.\n- `grind (gen := &lt;num&gt;)` sets the maximum generation.\n\n### Linear integer arithmetic (`lia`)\n\n`grind` can solve goals that reduce to **linear integer arithmetic (LIA)** using an\nintegrated decision procedure called **`lia`**.  It understands\n\n* equalities   `p = 0`\n* inequalities  `p ≤ 0`\n* disequalities `p ≠ 0`\n* divisibility  `d ∣ p`\n\nThe solver incrementally assigns integer values to variables; when a partial\nassignment violates a constraint it adds a new, implied constraint and retries.\nThis *model-based* search is **complete for LIA**.\n\n#### Key options:\n\n* `grind -lia` disable the solver (useful for debugging)\n* `grind +qlia` accept rational models (shrinks the search space but is incomplete for ℤ)\n\n#### Examples:\n\n```\n-- Even + even is never odd.\nexample {x y : Int} : 2 * x + 4 * y ≠ 5 := by\n  grind\n\n-- Mixing equalities and inequalities.\nexample {x y : Int} :\n    2 * x + 3 * y = 0 → 1 ≤ x → y &lt; 1 := by\n  grind\n\n-- Reasoning with divisibility.\nexample (a b : Int) :\n    2 ∣ a + 1 → 2 ∣ b + a → ¬ 2 ∣ b + 2 * a := by\n  grind\n\nexample (x y : Int) :\n    27 ≤ 11*x + 13*y →\n    11*x + 13*y ≤ 45 →\n    -10 ≤ 7*x - 9*y →\n    7*x - 9*y ≤ 4 → False := by\n  grind\n\n-- Types that implement the `ToInt` type-class.\nexample (a b c : UInt64)\n    : a ≤ 2 → b ≤ 3 → c - a - b = 0 → c ≤ 5 := by\n  grind\n```\n\n### Algebraic solver (`ring`)\n\n`grind` ships with an algebraic solver nick-named **`ring`** for goals that can\nbe phrased as polynomial equations (or disequations) over commutative rings,\nsemirings, or fields.\n\n*Works out of the box*\nAll core numeric types and relevant Mathlib types already provide the required\ntype-class instances, so the solver is ready to use in most developments.\n\nWhat it can decide:\n\n* equalities of the form `p = q`\n* disequalities `p ≠ q`\n* basic reasoning under field inverses (`a / b := a * b⁻¹`)\n* goals that mix ring facts with other `grind` engines\n\n#### Key options:\n\n* `grind -ring` turn the solver off (useful when debugging)\n* `grind (ringSteps := n)` cap the number of steps performed by this procedure.\n\n#### Examples\n\n```\nopen Lean Grind\n\nexample [CommRing α] (x : α) : (x + 1) * (x - 1) = x^2 - 1 := by\n  grind\n\n-- Characteristic 256 means 16 * 16 = 0.\nexample [CommRing α] [IsCharP α 256] (x : α) :\n    (x + 16) * (x - 16) = x^2 := by\n  grind\n\n-- Works on built-in rings such as `UInt8`.\nexample (x : UInt8) : (x + 16) * (x - 16) = x^2 := by\n  grind\n\nexample [CommRing α] (a b c : α) :\n    a + b + c = 3 →\n    a^2 + b^2 + c^2 = 5 →\n    a^3 + b^3 + c^3 = 7 →\n    a^4 + b^4 = 9 - c^4 := by\n  grind\n\nexample [Field α] [NoNatZeroDivisors α] (a : α) :\n    1 / a + 1 / (2 * a) = 3 / (2 * a) := by\n  grind\n```\n\n### Other options\n\n- `grind (splits := &lt;num&gt;)` caps the *depth* of the search tree.  Once a branch performs `num` splits\n  `grind` stops splitting further in that branch.\n- `grind -splitIte` disables case splitting on if-then-else expressions.\n- `grind -splitMatch` disables case splitting on `match` expressions.\n- `grind +splitImp` instructs `grind` to split on any hypothesis `A → B` whose antecedent `A` is **propositional**.\n- `grind -linarith` disables the linear arithmetic solver for (ordered) modules and rings.\n\n### Additional Examples\n\n```\nexample {a b} {as bs : List α} : (as ++ bs ++ [b]).getLastD a = b := by\n  grind\n\nexample (x : BitVec (w+1)) : (BitVec.cons x.msb (x.setWidth w)) = x := by\n  grind\n\nexample (as : Array α) (lo hi i j : Nat) :\n    lo ≤ i → i &lt; j → j ≤ hi → j &lt; as.size → min lo (as.size - 1) ≤ i := by\n  grind\n```\n</code>","16":"<code>Nat.dvd_refl (a : Nat) : a ∣ a</code>","17":"<code class=\"docstring\">The `obtain` tactic is a combination of `have` and `rcases`. See `rcases` for\na description of supported patterns.\n\n```lean\nobtain ⟨patt⟩ : type := proof\n```\nis equivalent to\n```lean\nhave h : type := proof\nrcases h with ⟨patt⟩\n```\n\nIf `⟨patt⟩` is omitted, `rcases` will try to infer the pattern.\n\nIf `type` is omitted, `:= proof` is required.\n</code>","18":"<code class=\"docstring\">`simp_all` is a stronger version of `simp [*] at *` where the hypotheses and target\nare simplified multiple times until no simplification is applicable.\nOnly non-dependent propositional hypotheses are considered.\n</code>","19":"<code>1 &lt; k ∧ k &lt; n ∧ k ∣ n</code>","2":"<code>Nat : Type</code><span class=\"sep\"></span><code class=\"docstring\">The natural numbers, starting at zero.\n\nThis type is special-cased by both the kernel and the compiler, and overridden with an efficient\nimplementation. Both use a fast arbitrary-precision arithmetic library (usually\n[GMP](https://gmplib.org/)); at runtime, `Nat` values that are sufficiently small are unboxed.\n</code>","20":"<code>Nat.dvd_trans {a b c : Nat} (h₁ : a ∣ b) (h₂ : b ∣ c) : a ∣ c</code>","3":"<code>exists_prime_factor (n : Nat) : 1 &lt; n → ∃ k, IsPrime k ∧ k ∣ n</code><span class=\"sep\"></span><code class=\"docstring\">Every number larger than 1 has a prime factor </code>","4":"<code class=\"docstring\">`by tac` constructs a term of the expected type by running the tactic(s) `tac`. </code>","5":"<code>LT.lt.{u} {α : Type u} [self : LT α] : α → α → Prop</code><span class=\"sep\"></span><code class=\"docstring\">The less-than relation: `x &lt; y` \n\nConventions for notations in identifiers:\n\n * The recommended spelling of `&lt;` in identifiers is `lt`.</code>","6":"<code>Exists.{u} {α : Sort u} (p : α → Prop) : Prop</code><span class=\"sep\"></span><code class=\"docstring\">Existential quantification. If `p : α → Prop` is a predicate, then `∃ x : α, p x`\nasserts that there is some `x` of type `α` such that `p x` holds.\nTo create an existential proof, use the `exists` tactic,\nor the anonymous constructor notation `⟨x, h⟩`.\nTo unpack an existential, use `cases h` where `h` is a proof of `∃ x : α, p x`,\nor `let ⟨x, hx⟩ := h` where `.\n\nBecause Lean has proof irrelevance, any two proofs of an existential are\ndefinitionally equal. One consequence of this is that it is impossible to recover the\nwitness of an existential from the mere fact of its existence.\nFor example, the following does not compile:\n```\nexample (h : ∃ x : Nat, x = x) : Nat :=\n  let ⟨x, _⟩ := h  -- fail, because the goal is `Nat : Type`\n  x\n```\nThe error message `recursor 'Exists.casesOn' can only eliminate into Prop` means\nthat this only works when the current goal is another proposition:\n```\nexample (h : ∃ x : Nat, x = x) : True :=\n  let ⟨x, _⟩ := h  -- ok, because the goal is `True : Prop`\n  trivial\n```\n</code>","7":"<code>And (a b : Prop) : Prop</code><span class=\"sep\"></span><code class=\"docstring\">`And a b`, or `a ∧ b`, is the conjunction of propositions. It can be\nconstructed and destructed like a pair: if `ha : a` and `hb : b` then\n`⟨ha, hb⟩ : a ∧ b`, and if `h : a ∧ b` then `h.left : a` and `h.right : b`.\n\n\nConventions for notations in identifiers:\n\n * The recommended spelling of `∧` in identifiers is `and`.\n\n * The recommended spelling of `/\\` in identifiers is `and` (prefer `∧` over `/\\`).</code>","8":"<code>Dvd.dvd.{u_1} {α : Type u_1} [self : Dvd α] : α → α → Prop</code><span class=\"sep\"></span><code class=\"docstring\">Divisibility. `a ∣ b` (typed as `\\|`) means that there is some `c` such that `b = a * c`. \n\nConventions for notations in identifiers:\n\n * The recommended spelling of `∣` in identifiers is `dvd`.</code>","9":"<code class=\"docstring\">Introduces one or more hypotheses, optionally naming and/or pattern-matching them.\nFor each hypothesis to be introduced, the remaining main goal's target type must\nbe a `let` or function type.\n\n* `intro` by itself introduces one anonymous hypothesis, which can be accessed\n  by e.g. `assumption`. It is equivalent to `intro _`.\n* `intro x y` introduces two hypotheses and names them. Individual hypotheses\n  can be anonymized via `_`, given a type ascription, or matched against a pattern:\n  ```lean\n  -- ... ⊢ α × β → ...\n  intro (a, b)\n  -- ..., a : α, b : β ⊢ ...\n  ```\n* `intro rfl` is short for `intro h; subst h`, if `h` is an equality where the left-hand or right-hand side\n  is a variable.\n* Alternatively, `intro` can be combined with pattern matching much like `fun`:\n  ```lean\n  intro\n  | n + 1, 0 =&gt; tac\n  | ...\n  ```\n</code>"};</script>
 <script>/**
@@ -1031,23 +1333,171 @@ window.onload = () => {
   });
 }
 </script>
+<script>// Click-to-panel infoview for `lean-snippet --slide`.
+//
+// Instead of hover tooltips, the reader clicks a name, tactic, or message and
+// its details appear in the side panel. This avoids hover boxes popping up over
+// content during a presentation, and works well when the snippet is embedded.
+//
+// It reads the same data the normal hover mode emits:
+//   * `_versoDocsJson[id]`        — docs/type for a `.token[data-verso-hover]`
+//   * `.tactic > .tactic-state`   — the goal state inside a `.tactic`
+//   * `.has-info .hover-info`     — a diagnostic message (if any survive)
+//   * `.token[data-binding]`      — used to highlight every occurrence of a binder
+window.addEventListener("load", () => {
+  const panel = document.querySelector(".info-panel");
+  if (!panel) return;
+  const docs = typeof _versoDocsJson !== "undefined" ? _versoDocsJson : {};
+  const EMPTY =
+    '<div class="info-panel-empty">Click a name, tactic, or message to see its details here.</div>';
+
+  const setPanel = (html) => {
+    if (!html || !html.trim()) {
+      panel.innerHTML = EMPTY;
+      return;
+    }
+    panel.innerHTML = '<div class="hl lean">' + html + "</div>";
+    // Render docstring markdown (e.g. `Foo` -> inline code) like the hover mode.
+    panel.querySelectorAll("code.docstring").forEach((d) => {
+      if (typeof marked !== "undefined") {
+        const div = document.createElement("div");
+        div.className = "docstring-rendered";
+        div.innerHTML = marked.parse(d.textContent);
+        d.replaceWith(div);
+      }
+    });
+  };
+  setPanel(null);
+
+  let selected = null;
+  const select = (el) => {
+    if (selected) selected.classList.remove("panel-selected");
+    selected = el;
+    if (el) el.classList.add("panel-selected");
+  };
+
+  // Highlight every occurrence of the clicked binder (same context + binding).
+  let lit = [];
+  const litBinding = (block, binding) => {
+    lit.forEach((t) => t.classList.remove("binding-hl"));
+    lit = [];
+    if (!binding) return;
+    const ctx = block.dataset.leanContext;
+    document.querySelectorAll("code.hl.lean").forEach((ex) => {
+      if (ex.dataset.leanContext !== ctx) return;
+      ex.querySelectorAll(
+        '.token[data-binding="' + CSS.escape(binding) + '"]'
+      ).forEach((t) => {
+        t.classList.add("binding-hl");
+        lit.push(t);
+      });
+    });
+  };
+
+  // The HTML to show in the panel for a clicked element.
+  const infoHtml = (el) => {
+    if (el.classList.contains("tactic")) {
+      const st = el.querySelector(":scope > .tactic-state");
+      return st ? st.outerHTML : ""; // keep the .tactic-state wrapper for layout
+    }
+    if (el.classList.contains("has-info")) {
+      const info = el.querySelector(":scope > .hover-container > .hover-info");
+      return info ? info.innerHTML : "";
+    }
+    // A name token: show "Name : Type" (name keeps its colour) then the docs.
+    const doc = docs[el.getAttribute("data-verso-hover")] || "";
+    const wrap = document.createElement("div");
+    wrap.innerHTML = doc;
+    const sig = wrap.querySelector("code:not(.docstring)");
+    const name = el.textContent.trim();
+    if (sig && name && !sig.textContent.trim().startsWith(name)) {
+      sig.innerHTML = el.outerHTML + " : " + sig.innerHTML;
+    }
+    return wrap.innerHTML;
+  };
+
+  // Clicking cycles outward→inward: a tactic's goal first, then the token under
+  // the cursor. Clicking the same spot again steps to the next inner element.
+  let lastInner = null;
+  let cycleIdx = 0;
+  document.querySelectorAll("code.hl.lean.block").forEach((block) => {
+    block.addEventListener("click", (event) => {
+      // Only act when the panel is showing (slide mode); inert in hover-only mode.
+      if (!document.body.classList.contains("slide")) return;
+      const chain = [];
+      let el = event.target;
+      while (el && el !== block) {
+        if (el.matches && el.matches(".tactic, .has-info, .token[data-verso-hover]"))
+          chain.push(el);
+        el = el.parentElement;
+      }
+      const tok = event.target.closest(".token[data-binding]");
+      litBinding(block, tok && tok.dataset.binding);
+      if (!chain.length) return;
+      chain.reverse(); // outermost (tactic) first, innermost (token) last
+      const inner = chain[chain.length - 1];
+      if (inner === lastInner) cycleIdx = (cycleIdx + 1) % chain.length;
+      else {
+        lastInner = inner;
+        cycleIdx = 0;
+      }
+      const sel = chain[cycleIdx];
+      event.preventDefault();
+      select(sel);
+      setPanel(infoHtml(sel));
+    });
+  });
+});
+</script>
+<script>// Drives the header "View" dropdown: Hover / Infoview / Literate.
+// All renderings are embedded; we just flip body classes — no regeneration.
+window.addEventListener("load", () => {
+  const cbs = Array.from(document.querySelectorAll(".mode-cb"));
+  if (!cbs.length) return;
+
+  const apply = () => {
+    const on = {};
+    cbs.forEach((c) => (on[c.value] = c.checked));
+    document.body.classList.toggle("mode-hover", !!on.hover);
+    document.body.classList.toggle("slide", !!on.slide);
+    document.body.classList.toggle("slide-click", !!on.slide && !on.hover);
+    document.body.classList.toggle("slide-both", !!on.slide && !!on.hover);
+    document.body.classList.toggle("lit-view", !!on.literate);
+  };
+  cbs.forEach((c) => c.addEventListener("change", apply));
+  apply();
+
+  // Close the dropdown when clicking outside it.
+  document.addEventListener("click", (e) => {
+    const d = document.querySelector("details.mode-switch");
+    if (d && d.open && !d.contains(e.target)) d.removeAttribute("open");
+  });
+});
+</script>
 <script>
 window.addEventListener('load', () => {
   const actions = document.querySelector('.snippet-actions');
-  const blocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
-  if (!actions || !blocks.length) return;
-  const code = blocks.map(b => b.innerText).join('\n\n');
+  if (!actions) return;
+  const allBlocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
+  if (!allBlocks.length) return;
+  // Copy the currently-visible code (the hidden content variant is skipped).
+  const codeOf = () => Array.from(document.querySelectorAll('code.hl.lean.block'))
+    .filter(b => b.offsetParent !== null).map(b => b.innerText).join('\n\n')
+    || allBlocks.map(b => b.innerText).join('\n\n');
   const copyBtn = document.createElement('button');
   copyBtn.textContent = 'Copy';
   copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(code).then(() => {
+    navigator.clipboard.writeText(codeOf()).then(() => {
       copyBtn.textContent = 'Copied!';
       setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
     });
   });
   const tryBtn = document.createElement('a');
-  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(code);
-  tryBtn.target = '_blank'; tryBtn.textContent = 'Try it!';
+  tryBtn.textContent = 'Try it!'; tryBtn.target = '_blank';
+  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(codeOf());
+  tryBtn.addEventListener('click', () => {
+    tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(codeOf());
+  });
   actions.appendChild(copyBtn); actions.appendChild(tryBtn);
 });
 </script>

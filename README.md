@@ -2,7 +2,7 @@
 
 Usually we just want 1 html file for 1 Lean4 code, not too many verso directories involved, but it should have all hover features Verso gives. You don't mind how big it is, just a simple thing you can utilize somewhere.
 
-This tool generate self-contained HTML snippets from Lean 4 code — with hover tooltips (type info, docstrings, binding highlights), GitHub-style syntax colors, a copy button, and a "Try it!" link to the Lean web editor.
+This tool generates self-contained HTML snippets from Lean 4 code — with hover tooltips (type info, docstrings, binding highlights), GitHub-style syntax colors, a copy button, and a "Try it!" link to the Lean web editor. Each snippet also carries a built-in **View** switcher to flip between three modes — **Hover**, **Infoview**, and **Literate** — live in the browser (see [below](#the-view-switcher--the-main-thing)).
 
 <div align="center">
 <img width="681" height="327" alt="image" src="https://github.com/user-attachments/assets/c5137328-d93e-4851-8eb5-d449b3da2637" />
@@ -30,45 +30,72 @@ Check out the demo's on the webpage [here](https://anirudhg07.github.io/src/proj
 </div>
 
 
-## Presentation mode — `--slide`
+## The "View" switcher — the main thing
 
-For slides or embedding, hover tooltips get in the way. With `--slide` the
-snippet renders with an **info panel joined to the right of the code** (split by
-a blue seam): clicking a name shows its type/docs, clicking a tactic shows the
-goal state, and clicking a variable highlights its other occurrences — all in
-the panel, nothing pops up over the code.
+Every snippet ships with a **View** dropdown in its header, next to the Copy and
+Try-it buttons. All three renderings are baked into the one self-contained file,
+so the dropdown switches between them **live in the browser** — instantly, with
+no regeneration and no extra files.
 
-```bash
-./lean-snippet proof.lean --slide          # click-only (default)
-./lean-snippet proof.lean --slide=both     # panel on click AND hover tooltips
-```
+<!-- PIC: the default snippet with the "View" dropdown open (Hover / Infoview / Literate) -->
+<div align="center">
+<!-- <img width="900" alt="the View dropdown" src="" /> -->
+</div>
+
+The three are independent checkboxes, so they combine freely (e.g. **Literate**
+prose *with* the **Infoview** panel). The opening view is picked for you — a file
+with `/-! … -/` prose opens in **Literate**, otherwise in **Hover** — and the
+flags below just set that initial state:
+
+| Flag                      | Opening view                                          |
+| ------------------------- | ----------------------------------------------------- |
+| *(none)*                  | Hover — or Literate if the file has `/-! … -/` prose  |
+| `--slide` / `--slide=both`| Infoview (`=both` keeps hover tooltips too)           |
+| `--literate`              | Literate                                              |
+| `--no-switcher`           | no dropdown — a single fixed mode                     |
+
+`--anchor` (a focused region) and `--no-enhance` (plain Verso styling) always
+produce a single fixed mode.
+
+### Hover
+
+The classic view: hover any name, tactic, or `#eval` to get a tooltip with its
+type, docstring, or output, and hover a binder to light up its other
+occurrences. Best for reading and for pages where the reader explores at their
+own pace.
+
+<!-- PIC: a hover tooltip -->
+<div align="center">
+<!-- <img width="700" alt="hover tooltip" src="" /> -->
+</div>
+
+### Infoview — `--slide`
+
+For slides and embeds, hover tooltips get in the way. **Infoview** joins an info
+panel to the right of the code (split by a blue seam): click a name for its
+type/docs, a tactic for its goal state, or a variable to highlight its
+occurrences — all in the panel, nothing popping up over the code.
+
 <div align="center">
 <img width="1221" height="499" alt="image" src="https://github.com/user-attachments/assets/03ce0452-3873-404c-8dc1-947d1310a058" />
 </div>
 
-`--slide=click` is the default; `--slide=both` keeps the normal hover tooltips
-working alongside the click panel. Inspired by
-[verso-slides](https://github.com/leanprover/verso-slides).
+`--slide=both` keeps the normal hover tooltips working alongside the panel.
+Inspired by [verso-slides](https://github.com/leanprover/verso-slides).
 
-## Literate mode — `--literate`
+### Literate — `--literate`
 
-Turn a `.lean` file into a mini-article: `/-! … -/` module-doc blocks render as
-**Markdown prose** — headings, lists, bold, links — with **`$LaTeX$` math**
-(typeset by KaTeX, fonts inlined so the file stays self-contained), interleaved
-with the highlighted code and its `#eval` output.
-
-```bash
-./lean-snippet demo/demo-4.lean --literate
-```
+Turn a `.lean` file into a mini-article: `/-! … -/` blocks render as **Markdown
+prose** — headings, lists, bold, links — with **`$LaTeX$` math** (typeset by
+KaTeX, fonts inlined so the file stays self-contained), interleaved with the
+highlighted code and its `#eval` output. `/-- … -/` doc comments stay attached to
+their declarations as usual.
 
 <div align="center">
 <img width="883" height="398" alt="image" src="https://github.com/user-attachments/assets/93ae659b-966e-448a-bdb7-9456e2648203" />
 </div>
 
-Only `/-! … -/` blocks become prose; `/-- … -/` doc comments stay attached to
-their declarations as usual. `--anchor` / `--multi-blocks` don't apply in
-literate mode (the whole document is rendered in source order). Inspired by
-[verso-templates](https://github.com/leanprover/verso-templates).
+Inspired by [verso-templates](https://github.com/leanprover/verso-templates).
 
 
 ## Marking regions to convert to Html
@@ -166,8 +193,9 @@ lean-snippet proof.lean
 | `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)           |
 | `--multi-blocks`           | One box per top-level command (default: a single box)          |
 | `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region |
-| `--literate`               | Render `/-! … -/` blocks as prose (Markdown + `$LaTeX$`) between the code |
-| `--slide[=click\|both]`    | Info in a joined right-side panel on click; `=both` keeps hovers too |
+| `--literate`               | Start in literate mode (`/-! … -/` → Markdown + `$LaTeX$` prose) |
+| `--slide[=click\|both]`    | Start in Infoview (click-panel) mode; `=both` also keeps hovers |
+| `--no-switcher`            | Emit a single fixed mode instead of the default "View" dropdown |
 | `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button |
 | `--setup`                  | First-time build of the renderer                               |
 

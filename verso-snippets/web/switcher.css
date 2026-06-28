@@ -1,0 +1,94 @@
+/* Header "View" dropdown that switches between Hover / Infoview / Literate.
+   All renderings are embedded; the dropdown flips body classes (and swaps the
+   visible content) — no regeneration. The plain code blocks are direct children
+   of `.lean-snippet`; only the literate variant is wrapped. */
+
+/* Flex so the <details> box is exactly the summary's height (no line-box
+   leading), keeping "View" vertically aligned with the Copy / Try-it buttons. */
+.mode-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+/* The summary inherits the shared `.snippet-actions` button look; only the
+   dropdown-specific bits live here. */
+.mode-switch > summary {
+  list-style: none;
+  margin: 0;
+}
+.mode-switch > summary::-webkit-details-marker {
+  display: none;
+}
+.mode-switch > summary::after {
+  content: "▾";
+  font-size: 0.7em;
+  margin-left: 1px;
+}
+.mode-switch[open] > summary {
+  border-color: #0969da;
+  color: #0969da;
+}
+.mode-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 50;
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 9.5rem;
+}
+.mode-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
+}
+.mode-menu label:hover {
+  background: #f3f4f6;
+}
+.mode-menu input {
+  margin: 0;
+}
+
+/* Literate variant: hidden by default, shown in lit-view; the plain code blocks
+   (direct children of .lean-snippet) hide in lit-view. */
+.snippet-content.literate {
+  display: none;
+}
+body.lit-view .snippet-content.literate {
+  display: block;
+}
+body.lit-view .lean-snippet > code.hl.lean.block {
+  display: none;
+}
+
+/* Suppress hover tooltips when Hover mode is off. */
+body:not(.mode-hover) .tippy-box {
+  display: none !important;
+}
+
+/* When Infoview is off, the panel hides and the code is full width with normal
+   (un-flattened) corners. */
+body:not(.slide) .info-panel-cell {
+  display: none;
+}
+body:not(.slide) .snippet-layout {
+  display: block;
+}
+body:not(.slide) .snippet-layout > .lean-snippet > code.hl.lean.block {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 8px;
+  border-right: 1px solid #d0d7de;
+}

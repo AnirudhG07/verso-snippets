@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css" type="text/css">
 <style>
-body { background:#fff; color:#222; max-width:860px; margin:0 auto; padding:1rem 2rem; }
+body { background:#fff; color:#222; max-width:1180px; margin:0 auto; padding:1rem 2rem; }
 
 
 .hl.lean {
@@ -679,9 +679,8 @@ Some CSS frameworks customize details/summary in ways not compatible with Verso'
   border: 1px solid #d0d7de;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  padding: 5px 12px;
+  padding: 3px 12px;
   margin: 1.5em 0 0 0;
-  min-height: 1.6rem;
 }
 .snippet-title {
   font-size: 0.9rem;
@@ -691,6 +690,7 @@ Some CSS frameworks customize details/summary in ways not compatible with Verso'
 }
 .snippet-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 /* The code box joins the header below it: flat top corners, no gap. */
@@ -739,24 +739,320 @@ code.hl.lean.block {
   display: block;
   overflow-x: auto;
 }
-.snippet-actions button, .snippet-actions a {
-  display: inline-flex; align-items: center; gap: 4px;
+.snippet-actions button, .snippet-actions a, .snippet-actions summary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  box-sizing: border-box; height: 1.55rem; padding: 0 16px;
   background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
-  padding: 1px 11px; font-size: 0.88rem; line-height: 1.25; font-weight: 500; color: #24292f;
+  font-size: 0.85rem; line-height: 1; font-weight: 500; color: #24292f;
   text-decoration: none; font-family: "Helvetica Neue", Arial, sans-serif;
-  cursor: pointer; white-space: nowrap;
+  cursor: pointer; white-space: nowrap; transition: border-color 0.12s, background 0.12s;
 }
-.snippet-actions button:hover, .snippet-actions a:hover {
+.snippet-actions button:hover, .snippet-actions a:hover, .snippet-actions summary:hover {
   border-color: #0969da; color: #0969da; background: #f3f4f6;
 }
 
+/* `lean-snippet --slide`: the info panel is JOINED to the code block as one
+   unit, split by a thick blue seam. Click a name/tactic to fill the panel. */
 
+body.slide {
+  max-width: 1180px;
+}
+
+.snippet-layout {
+  display: flex;
+  align-items: stretch; /* code and panel share one height */
+  margin: 1.5em 0;
+}
+.snippet-layout > .lean-snippet {
+  flex: 3 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+/* The code box drops its own margin and its right edge, so it butts up against
+   the panel; corners rounded on the left only. `min-width: 0` + `overflow-x`
+   keep long lines scrolling INSIDE the box instead of pushing past the seam. */
+body.slide .snippet-layout > .lean-snippet > code.hl.lean.block {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  /* Flatten the right (seam) side only; top corners are handled by the header. */
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  scrollbar-width: thin; /* Firefox: a visible (not overlay) scrollbar */
+}
+/* The header sits above the code in the left column; its right edge meets the
+   seam, so square that corner and drop its right border. */
+body.slide .snippet-layout > .lean-snippet > .snippet-header {
+  border-top-right-radius: 0;
+  border-right: none;
+}
+/* Always show the horizontal scrollbar so it's obvious long lines scroll
+   (macOS otherwise hides the overlay scrollbar until you scroll). */
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar {
+  height: 9px;
+}
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar-thumb {
+  background: #c0c7d0;
+  border-radius: 5px;
+}
+.snippet-layout > .lean-snippet > code.hl.lean.block::-webkit-scrollbar-track {
+  background: transparent;
+}
+.snippet-layout > .lean-snippet > .snippet-header {
+  margin-top: 0;
+}
+
+/* The panel lives in a relative cell that stretches to the code's height. The
+   panel itself is absolutely positioned and scrolls internally, so a long
+   selection never grows the box — it just scrolls within the same height. */
+.info-panel-cell {
+  flex: 1 1 0;
+  min-width: 10.5rem;
+  max-width: 22rem;
+  position: relative;
+}
+.info-panel {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-left: 4px solid #0969da; /* the blue seam joining code + panel */
+  border-radius: 0 8px 8px 0;
+  padding: 0.85rem 1rem;
+  font-size: 0.9em;
+  line-height: 1.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.info-panel-empty {
+  color: #6a737d;
+  font-style: italic;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+/* Panel content. Proof states carry token spans (so they stay fully colored);
+   type signatures are stored as plain text by Verso, shown in dark mono. */
+.info-panel .hl.lean {
+  white-space: pre-wrap;
+}
+/* A clicked tactic shows its proof state — a table layout (names right, colons
+   aligned). Override the pre-wrap (which would stretch the cells into random
+   gaps), drop the inner box, and keep it tight + left-aligned. */
+.info-panel .tactic-state {
+  display: block !important;
+  position: static;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+/* Strip Verso's box + table alignment so everything is plain left-aligned text. */
+.info-panel .tactic-state,
+.info-panel .tactic-state * {
+  white-space: normal;
+  border: none !important;
+  background: transparent !important;
+  text-align: left !important;
+}
+/* Each hypothesis on its own line as a plain "name : type", left-aligned —
+   override Verso's table-row/table-cell so the names don't sit in a wide column. */
+.info-panel .hypotheses {
+  display: block !important;
+}
+.info-panel .hypothesis {
+  display: block !important;
+}
+.info-panel .hypothesis > * {
+  display: inline !important;
+}
+.info-panel .hypotheses .colon {
+  min-width: 0 !important;
+  margin: 0 0.3em;
+}
+/* The type signature line. */
+.info-panel .hl.lean > code:not(.docstring) {
+  display: block;
+  color: #0550ae;
+  font-weight: 500;
+}
+/* Divider between the type and its docstring. */
+.info-panel .sep {
+  display: block;
+  height: 1px;
+  background: #d0d7de;
+  margin: 0.6rem 0;
+}
+/* Rendered docstring prose. */
+.info-panel .docstring-rendered {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: normal;
+  color: #24292f;
+}
+.info-panel .docstring-rendered :first-child { margin-top: 0; }
+.info-panel .docstring-rendered :last-child { margin-bottom: 0; }
+.info-panel .docstring-rendered code {
+  background: #eef1f5;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #0550ae;
+}
+
+/* Clickable affordances + selection / occurrence feedback. */
+code.hl.lean.block .token[data-verso-hover],
+code.hl.lean.block .token[data-binding],
+code.hl.lean.block .tactic > label {
+  cursor: pointer;
+}
+.panel-selected {
+  background: rgba(9, 105, 218, 0.18);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(9, 105, 218, 0.45);
+}
+.binding-hl {
+  background: rgba(255, 196, 0, 0.45);
+  border-radius: 3px;
+}
+
+/* Click-only mode routes the proof state to the panel (no inline toggle).
+   `--slide=both` keeps the inline hover/toggle working next to the panel. */
+body.slide-click code.hl.lean.block .tactic-toggle {
+  display: none;
+}
+body.slide-click code.hl.lean.block .tactic-state {
+  display: none !important;
+}
+/* Keep the little toggle circle as a visual cue that a tactic is clickable —
+   clicking opens its goal in the panel (the inline state stays hidden above). */
+
+/* Stack vertically on narrow screens; the panel returns to normal flow with a
+   capped height, and the seam moves to its top. */
+@media (max-width: 720px) {
+  .snippet-layout {
+    flex-direction: column;
+  }
+  .snippet-layout > .lean-snippet > code.hl.lean.block {
+    border-radius: 8px 8px 0 0;
+    border-right: 1px solid #d0d7de;
+    border-bottom: none;
+  }
+  .info-panel-cell {
+    min-height: 8rem;
+  }
+  .info-panel {
+    position: static;
+    border-left: 1px solid #d0d7de;
+    border-top: 4px solid #0969da;
+    border-radius: 0 0 8px 8px;
+    max-height: 24rem;
+  }
+}
+
+/* Header "View" dropdown that switches between Hover / Infoview / Literate.
+   All renderings are embedded; the dropdown flips body classes (and swaps the
+   visible content) — no regeneration. The plain code blocks are direct children
+   of `.lean-snippet`; only the literate variant is wrapped. */
+
+/* Flex so the <details> box is exactly the summary's height (no line-box
+   leading), keeping "View" vertically aligned with the Copy / Try-it buttons. */
+.mode-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+/* The summary inherits the shared `.snippet-actions` button look; only the
+   dropdown-specific bits live here. */
+.mode-switch > summary {
+  list-style: none;
+  margin: 0;
+}
+.mode-switch > summary::-webkit-details-marker {
+  display: none;
+}
+.mode-switch > summary::after {
+  content: "▾";
+  font-size: 0.7em;
+  margin-left: 1px;
+}
+.mode-switch[open] > summary {
+  border-color: #0969da;
+  color: #0969da;
+}
+.mode-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 50;
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 9.5rem;
+}
+.mode-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
+}
+.mode-menu label:hover {
+  background: #f3f4f6;
+}
+.mode-menu input {
+  margin: 0;
+}
+
+/* Literate variant: hidden by default, shown in lit-view; the plain code blocks
+   (direct children of .lean-snippet) hide in lit-view. */
+.snippet-content.literate {
+  display: none;
+}
+body.lit-view .snippet-content.literate {
+  display: block;
+}
+body.lit-view .lean-snippet > code.hl.lean.block {
+  display: none;
+}
+
+/* Suppress hover tooltips when Hover mode is off. */
+body:not(.mode-hover) .tippy-box {
+  display: none !important;
+}
+
+/* When Infoview is off, the panel hides and the code is full width with normal
+   (un-flattened) corners. */
+body:not(.slide) .info-panel-cell {
+  display: none;
+}
+body:not(.slide) .snippet-layout {
+  display: block;
+}
+body:not(.slide) .snippet-layout > .lean-snippet > code.hl.lean.block {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 8px;
+  border-right: 1px solid #d0d7de;
+}
 
 </style>
 </head>
-<body>
+<body class="mode-hover">
+<div class="snippet-layout">
 <div class="lean-snippet">
-<div class="snippet-header"><span class="snippet-title"></span><span class="snippet-actions"></span></div>
+<div class="snippet-header"><span class="snippet-title"></span><span class="snippet-actions"><details class="mode-switch"><summary>View</summary><div class="mode-menu"><label><input type="checkbox" class="mode-cb" value="hover" checked> Hover</label><label><input type="checkbox" class="mode-cb" value="slide"> Infoview</label></div></details></span></div>
 <code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.open-12" data-verso-hover="0">open</span><span class="inter-text"> </span><span class="unknown token" data-binding="">Std.Do</span><span class="inter-text">
 
 </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-25">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-sum_to_n" data-verso-hover="1">sum_to_n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Int" data-verso-hover="2">Int</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="const token" data-binding="const-Id" data-verso-hover="3">Id</span><span class="inter-text"> </span><span class="const token" data-binding="const-Int" data-verso-hover="2">Int</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:=</span><span class="inter-text"> </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Term.fun-58">fun</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.9" data-verso-hover="4">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">↦</span><span class="inter-text">
@@ -769,6 +1065,8 @@ code.hl.lean.block {
       </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Term.doReturn-218" data-verso-hover="5">return</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.153" data-verso-hover="4">total</span><span class="unknown token" data-binding="">)</span><span class="inter-text">
 
 </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.eval-233" data-verso-hover="6">#eval</span><span class="inter-text"> </span><span class="const token" data-binding="const-sum_to_n" data-verso-hover="1">sum_to_n</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="4">10</span><span class="unknown token" data-binding=""></span><span class="verso-message information"><span class="text"></span><span class="text">55</span></span></code>
+</div>
+<div class="info-panel-cell"><aside class="info-panel"></aside></div>
 </div>
 <script>const _versoDocsJson = {"0":"<code class=\"docstring\">Makes names from other namespaces visible without writing the namespace prefix.\n\nNames that are made available with `open` are visible within the current `section` or `namespace`\nblock. This makes referring to (type) definitions and theorems easier, but note that it can also\nmake [scoped instances], notations, and attributes from a different namespace available.\n\nThe `open` command can be used in a few different ways:\n\n* `open Some.Namespace.Path1 Some.Namespace.Path2` makes all non-protected names in\n  `Some.Namespace.Path1` and `Some.Namespace.Path2` available without the prefix, so that\n  `Some.Namespace.Path1.x` and `Some.Namespace.Path2.y` can be referred to by writing only `x` and\n  `y`.\n\n* `open Some.Namespace.Path hiding def1 def2` opens all non-protected names in `Some.Namespace.Path`\n  except `def1` and `def2`.\n\n* `open Some.Namespace.Path (def1 def2)` only makes `Some.Namespace.Path.def1` and\n  `Some.Namespace.Path.def2` available without the full prefix, so `Some.Namespace.Path.def3` would\n  be unaffected.\n\n  This works even if `def1` and `def2` are `protected`.\n\n* `open Some.Namespace.Path renaming def1 → def1', def2 → def2'` same as `open Some.Namespace.Path\n  (def1 def2)` but `def1`/`def2`'s names are changed to `def1'`/`def2'`.\n\n  This works even if `def1` and `def2` are `protected`.\n\n* `open scoped Some.Namespace.Path1 Some.Namespace.Path2` **only** opens [scoped instances],\n  notations, and attributes from `Namespace1` and `Namespace2`; it does **not** make any other name\n  available.\n\n* `open &lt;any of the open shapes above&gt; in` makes the names `open`-ed visible only in the next\n  command or expression.\n\n[scoped instance]: https://lean-lang.org/theorem_proving_in_lean4/type_classes.html#scoped-instances\n(Scoped instances in Theorem Proving in Lean)\n\n\n## Examples\n\n```lean\n/-- SKI combinators https://en.wikipedia.org/wiki/SKI_combinator_calculus -/\nnamespace Combinator.Calculus\n  def I (a : α) : α := a\n  def K (a : α) : β → α := fun _ =&gt; a\n  def S (x : α → β → γ) (y : α → β) (z : α) : γ := x z (y z)\nend Combinator.Calculus\n\nsection\n  -- open everything under `Combinator.Calculus`, *i.e.* `I`, `K` and `S`,\n  -- until the section ends\n  open Combinator.Calculus\n\n  theorem SKx_eq_K : S K x = I := rfl\nend\n\n-- open everything under `Combinator.Calculus` only for the next command (the next `theorem`, here)\nopen Combinator.Calculus in\ntheorem SKx_eq_K' : S K x = I := rfl\n\nsection\n  -- open only `S` and `K` under `Combinator.Calculus`\n  open Combinator.Calculus (S K)\n\n  theorem SKxy_eq_y : S K x y = y := rfl\n\n  -- `I` is not in scope, we have to use its full path\n  theorem SKxy_eq_Iy : S K x y = Combinator.Calculus.I y := rfl\nend\n\nsection\n  open Combinator.Calculus\n    renaming\n      I → identity,\n      K → konstant\n\n  #check identity\n  #check konstant\nend\n\nsection\n  open Combinator.Calculus\n    hiding S\n\n  #check I\n  #check K\nend\n\nsection\n  namespace Demo\n    inductive MyType\n    | val\n\n    namespace N1\n      scoped infix:68 \" ≋ \" =&gt; BEq.beq\n\n      scoped instance : BEq MyType where\n        beq _ _ := true\n\n      def Alias := MyType\n    end N1\n  end Demo\n\n  -- bring `≋` and the instance in scope, but not `Alias`\n  open scoped Demo.N1\n\n  #check Demo.MyType.val == Demo.MyType.val\n  #check Demo.MyType.val ≋ Demo.MyType.val\n  -- #check Alias -- unknown identifier 'Alias'\nend\n```\n</code>","1":"<code>sum_to_n : Int → Id Int</code>","2":"<code>Int : Type</code><span class=\"sep\"></span><code class=\"docstring\">The integers.\n\nThis type is special-cased by the compiler and overridden with an efficient implementation. The\nruntime has a special representation for `Int` that stores “small” signed numbers directly, while\nlarger numbers use a fast arbitrary-precision arithmetic library (usually\n[GMP](https://gmplib.org/)). A “small number” is an integer that can be encoded with one fewer bits\nthan the platform's pointer size (i.e. 63 bits on 64-bit architectures and 31 bits on 32-bit\narchitectures).\n</code>","3":"<code>Id.{u} (type : Type u) : Type u</code><span class=\"sep\"></span><code class=\"docstring\">The identity function on types, used primarily for its `Monad` instance.\n\nThe identity monad is useful together with monad transformers to construct monads for particular\npurposes. Additionally, it can be used with `do`-notation in order to use control structures such as\nlocal mutability, `for`-loops, and early returns in code that does not otherwise use monads.\n\nExamples:\n```lean example\ndef containsFive (xs : List Nat) : Bool := Id.run do\n  for x in xs do\n    if x == 5 then return true\n  return false\n```\n\n```lean example\n#eval containsFive [1, 3, 5, 7]\n```\n```output\ntrue\n```\n</code>","4":"<code>Int</code>","5":"<code class=\"docstring\">`return e` inside of a `do` block makes the surrounding block evaluate to `pure e`,\nskipping any further statements.\nNote that uses of the `do` keyword in other syntax like in `for _ in _ do`\ndo not constitute a surrounding block in this sense;\nin supported editors, the corresponding `do` keyword of the surrounding block\nis highlighted when hovering over `return`.\n\n`return` not followed by a term starting on the same line is equivalent to `return ()`.\n</code>","6":"<code class=\"docstring\">`#eval e` evaluates the expression `e` by compiling and evaluating it.\n\n* The command attempts to use `ToExpr`, `Repr`, or `ToString` instances to print the result.\n* If `e` is a monadic value of type `m ty`, then the command tries to adapt the monad `m`\n  to one of the monads that `#eval` supports, which include `IO`, `CoreM`, `MetaM`, `TermElabM`, and `CommandElabM`.\n  Users can define `MonadEval` instances to extend the list of supported monads.\n\nThe `#eval` command gracefully degrades in capability depending on what is imported.\nImporting the `Lean.Elab.Command` module provides full capabilities.\n\nDue to unsoundness, `#eval` refuses to evaluate expressions that depend on `sorry`, even indirectly,\nsince the presence of `sorry` can lead to runtime instability and crashes.\nThis check can be overridden with the `#eval! e` command.\n\nOptions:\n* If `eval.pp` is true (default: true) then tries to use `ToExpr` instances to make use of the\n  usual pretty printer. Otherwise, only tries using `Repr` and `ToString` instances.\n* If `eval.type` is true (default: false) then pretty prints the type of the evaluated value.\n* If `eval.derive.repr` is true (default: true) then attempts to auto-derive a `Repr` instance\n  when there is no other way to print the result.\n\nSee also: `#reduce e` for evaluation by term reduction.\n</code>"};</script>
 <script>/**
@@ -1030,23 +1328,171 @@ window.onload = () => {
   });
 }
 </script>
+<script>// Click-to-panel infoview for `lean-snippet --slide`.
+//
+// Instead of hover tooltips, the reader clicks a name, tactic, or message and
+// its details appear in the side panel. This avoids hover boxes popping up over
+// content during a presentation, and works well when the snippet is embedded.
+//
+// It reads the same data the normal hover mode emits:
+//   * `_versoDocsJson[id]`        — docs/type for a `.token[data-verso-hover]`
+//   * `.tactic > .tactic-state`   — the goal state inside a `.tactic`
+//   * `.has-info .hover-info`     — a diagnostic message (if any survive)
+//   * `.token[data-binding]`      — used to highlight every occurrence of a binder
+window.addEventListener("load", () => {
+  const panel = document.querySelector(".info-panel");
+  if (!panel) return;
+  const docs = typeof _versoDocsJson !== "undefined" ? _versoDocsJson : {};
+  const EMPTY =
+    '<div class="info-panel-empty">Click a name, tactic, or message to see its details here.</div>';
+
+  const setPanel = (html) => {
+    if (!html || !html.trim()) {
+      panel.innerHTML = EMPTY;
+      return;
+    }
+    panel.innerHTML = '<div class="hl lean">' + html + "</div>";
+    // Render docstring markdown (e.g. `Foo` -> inline code) like the hover mode.
+    panel.querySelectorAll("code.docstring").forEach((d) => {
+      if (typeof marked !== "undefined") {
+        const div = document.createElement("div");
+        div.className = "docstring-rendered";
+        div.innerHTML = marked.parse(d.textContent);
+        d.replaceWith(div);
+      }
+    });
+  };
+  setPanel(null);
+
+  let selected = null;
+  const select = (el) => {
+    if (selected) selected.classList.remove("panel-selected");
+    selected = el;
+    if (el) el.classList.add("panel-selected");
+  };
+
+  // Highlight every occurrence of the clicked binder (same context + binding).
+  let lit = [];
+  const litBinding = (block, binding) => {
+    lit.forEach((t) => t.classList.remove("binding-hl"));
+    lit = [];
+    if (!binding) return;
+    const ctx = block.dataset.leanContext;
+    document.querySelectorAll("code.hl.lean").forEach((ex) => {
+      if (ex.dataset.leanContext !== ctx) return;
+      ex.querySelectorAll(
+        '.token[data-binding="' + CSS.escape(binding) + '"]'
+      ).forEach((t) => {
+        t.classList.add("binding-hl");
+        lit.push(t);
+      });
+    });
+  };
+
+  // The HTML to show in the panel for a clicked element.
+  const infoHtml = (el) => {
+    if (el.classList.contains("tactic")) {
+      const st = el.querySelector(":scope > .tactic-state");
+      return st ? st.outerHTML : ""; // keep the .tactic-state wrapper for layout
+    }
+    if (el.classList.contains("has-info")) {
+      const info = el.querySelector(":scope > .hover-container > .hover-info");
+      return info ? info.innerHTML : "";
+    }
+    // A name token: show "Name : Type" (name keeps its colour) then the docs.
+    const doc = docs[el.getAttribute("data-verso-hover")] || "";
+    const wrap = document.createElement("div");
+    wrap.innerHTML = doc;
+    const sig = wrap.querySelector("code:not(.docstring)");
+    const name = el.textContent.trim();
+    if (sig && name && !sig.textContent.trim().startsWith(name)) {
+      sig.innerHTML = el.outerHTML + " : " + sig.innerHTML;
+    }
+    return wrap.innerHTML;
+  };
+
+  // Clicking cycles outward→inward: a tactic's goal first, then the token under
+  // the cursor. Clicking the same spot again steps to the next inner element.
+  let lastInner = null;
+  let cycleIdx = 0;
+  document.querySelectorAll("code.hl.lean.block").forEach((block) => {
+    block.addEventListener("click", (event) => {
+      // Only act when the panel is showing (slide mode); inert in hover-only mode.
+      if (!document.body.classList.contains("slide")) return;
+      const chain = [];
+      let el = event.target;
+      while (el && el !== block) {
+        if (el.matches && el.matches(".tactic, .has-info, .token[data-verso-hover]"))
+          chain.push(el);
+        el = el.parentElement;
+      }
+      const tok = event.target.closest(".token[data-binding]");
+      litBinding(block, tok && tok.dataset.binding);
+      if (!chain.length) return;
+      chain.reverse(); // outermost (tactic) first, innermost (token) last
+      const inner = chain[chain.length - 1];
+      if (inner === lastInner) cycleIdx = (cycleIdx + 1) % chain.length;
+      else {
+        lastInner = inner;
+        cycleIdx = 0;
+      }
+      const sel = chain[cycleIdx];
+      event.preventDefault();
+      select(sel);
+      setPanel(infoHtml(sel));
+    });
+  });
+});
+</script>
+<script>// Drives the header "View" dropdown: Hover / Infoview / Literate.
+// All renderings are embedded; we just flip body classes — no regeneration.
+window.addEventListener("load", () => {
+  const cbs = Array.from(document.querySelectorAll(".mode-cb"));
+  if (!cbs.length) return;
+
+  const apply = () => {
+    const on = {};
+    cbs.forEach((c) => (on[c.value] = c.checked));
+    document.body.classList.toggle("mode-hover", !!on.hover);
+    document.body.classList.toggle("slide", !!on.slide);
+    document.body.classList.toggle("slide-click", !!on.slide && !on.hover);
+    document.body.classList.toggle("slide-both", !!on.slide && !!on.hover);
+    document.body.classList.toggle("lit-view", !!on.literate);
+  };
+  cbs.forEach((c) => c.addEventListener("change", apply));
+  apply();
+
+  // Close the dropdown when clicking outside it.
+  document.addEventListener("click", (e) => {
+    const d = document.querySelector("details.mode-switch");
+    if (d && d.open && !d.contains(e.target)) d.removeAttribute("open");
+  });
+});
+</script>
 <script>
 window.addEventListener('load', () => {
   const actions = document.querySelector('.snippet-actions');
-  const blocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
-  if (!actions || !blocks.length) return;
-  const code = blocks.map(b => b.innerText).join('\n\n');
+  if (!actions) return;
+  const allBlocks = Array.from(document.querySelectorAll('code.hl.lean.block'));
+  if (!allBlocks.length) return;
+  // Copy the currently-visible code (the hidden content variant is skipped).
+  const codeOf = () => Array.from(document.querySelectorAll('code.hl.lean.block'))
+    .filter(b => b.offsetParent !== null).map(b => b.innerText).join('\n\n')
+    || allBlocks.map(b => b.innerText).join('\n\n');
   const copyBtn = document.createElement('button');
   copyBtn.textContent = 'Copy';
   copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(code).then(() => {
+    navigator.clipboard.writeText(codeOf()).then(() => {
       copyBtn.textContent = 'Copied!';
       setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
     });
   });
   const tryBtn = document.createElement('a');
-  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(code);
-  tryBtn.target = '_blank'; tryBtn.textContent = 'Try it!';
+  tryBtn.textContent = 'Try it!'; tryBtn.target = '_blank';
+  tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(codeOf());
+  tryBtn.addEventListener('click', () => {
+    tryBtn.href = 'https://live.lean-lang.org/#code=' + encodeURIComponent(codeOf());
+  });
   actions.appendChild(copyBtn); actions.appendChild(tryBtn);
 });
 </script>
