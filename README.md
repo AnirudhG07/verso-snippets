@@ -29,6 +29,48 @@ Check out the demo's on the webpage [here](https://anirudhg07.github.io/src/proj
 <img width="650" height="400" alt="image" src="https://github.com/user-attachments/assets/21832169-7139-4eb4-a9f2-78bf517b9319" />
 </div>
 
+
+## Presentation mode — `--slide`
+
+For slides or embedding, hover tooltips get in the way. With `--slide` the
+snippet renders with an **info panel joined to the right of the code** (split by
+a blue seam): clicking a name shows its type/docs, clicking a tactic shows the
+goal state, and clicking a variable highlights its other occurrences — all in
+the panel, nothing pops up over the code.
+
+```bash
+./lean-snippet proof.lean --slide          # click-only (default)
+./lean-snippet proof.lean --slide=both     # panel on click AND hover tooltips
+```
+<div align="center">
+<img width="1221" height="499" alt="image" src="https://github.com/user-attachments/assets/03ce0452-3873-404c-8dc1-947d1310a058" />
+</div>
+
+`--slide=click` is the default; `--slide=both` keeps the normal hover tooltips
+working alongside the click panel. Inspired by
+[verso-slides](https://github.com/leanprover/verso-slides).
+
+## Literate mode — `--literate`
+
+Turn a `.lean` file into a mini-article: `/-! … -/` module-doc blocks render as
+**Markdown prose** — headings, lists, bold, links — with **`$LaTeX$` math**
+(typeset by KaTeX, fonts inlined so the file stays self-contained), interleaved
+with the highlighted code and its `#eval` output.
+
+```bash
+./lean-snippet demo/demo-4.lean --literate
+```
+
+<div align="center">
+<img width="883" height="398" alt="image" src="https://github.com/user-attachments/assets/93ae659b-966e-448a-bdb7-9456e2648203" />
+</div>
+
+Only `/-! … -/` blocks become prose; `/-- … -/` doc comments stay attached to
+their declarations as usual. `--anchor` / `--multi-blocks` don't apply in
+literate mode (the whole document is rendered in source order). Inspired by
+[verso-templates](https://github.com/leanprover/verso-templates).
+
+
 ## Marking regions to convert to Html
 
 You may want the whole Lean4 code or just a small portion of the Lean code into Html. Verso snippets covers it all.
@@ -74,13 +116,9 @@ Comments are preserved exactly as written — `--` line comments, `/-- … -/` d
 comments, and `/-! … -/` section comments all render as-is. `#eval` / `#check`
 output and the goal state at each tactic are captured too, and appear on hover.
 
-## Requirements
-
-- **Lean 4** (`leanprover/lean4:v4.29.0`) via [elan](https://github.com/leanprover/elan)
-
-That's it — the whole pipeline is Lean (Verso + SubVerso). No Python, no Node.
-
 ## Setup
+
+Currently Version supported **Lean v4.29.0**.
 
 The whole tool is driven by one shell script: **`lean-snippet`**. Clone the repo
 and run the one-time setup, which downloads Verso and builds the binaries:
@@ -120,38 +158,6 @@ Symlink it onto your `PATH` so you can drop the `./` and call it from any direct
 ln -s "$PWD/lean-snippet" ~/bin/lean-snippet
 lean-snippet proof.lean
 ```
-
-## Presentation mode — `--slide`
-
-For slides or embedding, hover tooltips get in the way. With `--slide` the
-snippet renders with an **info panel joined to the right of the code** (split by
-a blue seam): clicking a name shows its type/docs, clicking a tactic shows the
-goal state, and clicking a variable highlights its other occurrences — all in
-the panel, nothing pops up over the code.
-
-```bash
-./lean-snippet proof.lean --slide          # click-only (default)
-./lean-snippet proof.lean --slide=both     # panel on click AND hover tooltips
-```
-
-`--slide=click` is the default; `--slide=both` keeps the normal hover tooltips
-working alongside the click panel. Inspired by
-[verso-slides](https://github.com/leanprover/verso-slides).
-
-## Literate mode — `--literate`
-
-Turn a `.lean` file into a mini-article: `/-! … -/` module-doc blocks render as
-**Markdown prose** — headings, lists, bold, links — with **`$LaTeX$` math**
-(typeset by KaTeX, fonts inlined so the file stays self-contained), interleaved
-with the highlighted code and its `#eval` output.
-
-```bash
-./lean-snippet demo/demo-4.lean --literate
-```
-
-Only `/-! … -/` blocks become prose; `/-- … -/` doc comments stay attached to
-their declarations as usual. `--anchor` / `--multi-blocks` don't apply in
-literate mode (the whole document is rendered in source order).
 
 ## Options
 
