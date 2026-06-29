@@ -2,10 +2,12 @@
 
 Usually we just want 1 html file for 1 Lean4 code, not too many verso directories involved, but it should have all hover features Verso gives. You don't mind how big it is, just a simple thing you can utilize somewhere.
 
-This tool generates self-contained HTML snippets from Lean 4 code — with hover tooltips (type info, docstrings, binding highlights), GitHub-style syntax colors, a copy button, and a "Try it!" link to the Lean web editor. Each snippet also carries a built-in **View** switcher to flip between three modes — **Hover**, **Infoview**, and **Literate** — live in the browser (see [below](#the-view-switcher--the-main-thing)).
+This tool generates self-contained **1** HTML snippets from any Lean 4 code(which builds) — with hover tooltips (type info, docstrings, binding highlights), Lean syntax-highlighting colors, a copy button, and a "Try it!" link to the Lean web editor. Each snippet also carries a built-in **View** switcher to flip between three modes — **Hover**, **Infoview**, and **Literate** — live in the browser (see [below](#the-view-switcher--the-main-thing)).
+
+This is how it looks with by default for you.
 
 <div align="center">
-<img width="681" height="327" alt="image" src="https://github.com/user-attachments/assets/c5137328-d93e-4851-8eb5-d449b3da2637" />
+  <img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/5d18d2b4-288f-40eb-82d7-dc4c0e153fb1" />
 </div>
 
 ## What it produces
@@ -22,11 +24,8 @@ A single `.html` file you can open in a browser or embed anywhere via `<iframe>`
 
 Check out the demo's on the webpage [here](https://anirudhg07.github.io/src/projects/verso-snippets.html) to visualize them.
 
-<!--
-<img width="625" height="329" alt="image" src="https://github.com/user-attachments/assets/1bf0b33c-b913-4fc5-ad96-ea74f6aab96c" />
--->
 <div align="center">
-<img width="650" height="400" alt="image" src="https://github.com/user-attachments/assets/21832169-7139-4eb4-a9f2-78bf517b9319" />
+  <img width="680" height="360" alt="image" src="https://github.com/user-attachments/assets/df84f61a-3e4b-4e40-8982-c7c33b63d4ad" />
 </div>
 
 ## The "View" switcher — the main thing
@@ -79,7 +78,7 @@ type/docs, a tactic for its goal state, or a variable to highlight its
 occurrences — all in the panel, nothing popping up over the code.
 
 <div align="center">
-<img width="1221" height="499" alt="image" src="https://github.com/user-attachments/assets/03ce0452-3873-404c-8dc1-947d1310a058" />
+  <img width="677" height="360" alt="image" src="https://github.com/user-attachments/assets/e9ce91ce-ebcc-41fc-9b81-520fbb8a1b9a" />
 </div>
 
 `--infoview=both` keeps the normal hover tooltips working alongside the panel.
@@ -108,22 +107,34 @@ If you want the whole code, you don't have to do anything.
 If you only want to display _part_ of a file (while still compiling the whole thing), wrap the region in **anchor comments** and select it with `--anchor`:
 
 ```lean
--- helper needed to compile, not displayed
-def IsPrime (n : Nat) := 1 < n ∧ ∀ k, 1 < k → k < n → ¬ k ∣ n
+-- ANCHOR: part2
+/-- Dynamic-programming Fibonacci: memoise into a `HashMap` carried by `StateM`. -/
+def fibMemo : Nat → StateM (HashMap Nat Nat) Nat
+  | 0     => pure 0
+  | 1     => pure 1
+  | n + 2 => do
+    if let some cached := (← get)[n + 2]? then
+      return cached
+    let value := (← fibMemo n) + (← fibMemo (n + 1))
+    modify (·.insert (n + 2) value)
+    return value
 
--- ANCHOR: main
-/-- Every number larger than 1 has a prime factor -/
-theorem exists_prime_factor :
-    ∀ n, 1 < n → ∃ k, IsPrime k ∧ k ∣ n := by
-  ...
--- ANCHOR_END: main
+/-- Run the memoised computation starting from an empty table. -/
+def fibDP (n : Nat) : Nat := (fibMemo n).run' {}
+
+#check @fibDP
+#eval fibDP 30
+-- ANCHOR_END: part2
 ```
 
 ```bash
 ./lean-snippet proof.lean --anchor main
 ```
+<div align="center">
+   <img width="603" height="360" alt="image" src="https://github.com/user-attachments/assets/97d7cc11-6c90-49ee-985b-9b3cf7e86713" />
+</div>
 
-- The whole file is compiled; only the named region is shown.
+- The whole file is compiled; only the named region is shown(name is mentioned in the panel at the top).
 - Anchor comments (`-- ANCHOR:` / `-- ANCHOR_END:`) are stripped from the output even when you render the whole file.
 - Anchors are a [SubVerso](https://github.com/leanprover/subverso) feature, so they can also name individual proof states — see SubVerso's docs.
 
