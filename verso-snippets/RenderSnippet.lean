@@ -181,7 +181,7 @@ code.hl.lean.block {
   position: relative;
   line-height: 1.5;
   font-size: 0.95em;
-  margin: 1.5em 0;
+  margin: 0.8rem 0;
   display: block;
   overflow-x: auto;
 }
@@ -469,12 +469,14 @@ def buildPlainBlocks (items : Array ModuleItem) (showOutput multiBlocks : Bool)
   let nonHeader := items.filter (fun it => it.kind != `Lean.Parser.Module.header)
   -- `/-! … -/` module docs are highlighted as `unknown` tokens (so they'd show
   -- red/black). In the plain view render them as plain comment text → green.
-  let codeFor := fun (it : ModuleItem) =>
+  let asText := fun (it : ModuleItem) =>
     if it.kind == `Lean.Parser.Command.moduleDoc then Highlighted.text it.code.toString
-    else stripAnchors it.code
+    else it.code
+  -- Strip anchors on the whole sequence (single box) so markers that span items
+  -- are removed; per box for multi-block.
   let codes : Array Highlighted :=
-    if multiBlocks then display.map codeFor
-    else #[Highlighted.seq (nonHeader.map codeFor)]
+    if multiBlocks then display.map (fun it => stripAnchors (asText it))
+    else #[stripAnchors (Highlighted.seq (nonHeader.map asText))]
   let mut st := st0
   let mut htmls : Array String := #[]
   for code in codes do

@@ -735,7 +735,7 @@ code.hl.lean.block {
   position: relative;
   line-height: 1.5;
   font-size: 0.95em;
-  margin: 1.5em 0;
+  margin: 0.8rem 0;
   display: block;
   overflow-x: auto;
 }
@@ -774,16 +774,20 @@ body.slide {
    the panel; corners rounded on the left only. `min-width: 0` + `overflow-x`
    keep long lines scrolling INSIDE the box instead of pushing past the seam. */
 body.slide .snippet-layout > .lean-snippet > code.hl.lean.block {
-  margin: 0;
-  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
-  /* Flatten the right (seam) side only; top corners are handled by the header. */
+  /* Flatten the right (seam) side only; top corners are handled by the header.
+     Keep the normal vertical margins so multi-block snippets keep their gaps
+     (matching hover mode) instead of collapsing into one slab. */
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-right: none;
   scrollbar-width: thin; /* Firefox: a visible (not overlay) scrollbar */
+}
+/* The last block's bottom margin would push the panel below it, so drop it. */
+body.slide .snippet-layout > .lean-snippet > code.hl.lean.block:last-child {
+  margin-bottom: 0;
 }
 /* The header sits above the code in the left column; its right edge meets the
    seam, so square that corner and drop its right border. */
@@ -1070,10 +1074,10 @@ body:not(.slide) .snippet-layout > .lean-snippet > code.hl.lean.block {
 
 </style>
 </head>
-<body class="mode-hover">
+<body class="slide slide-click">
 <div class="snippet-layout">
 <div class="lean-snippet">
-<div class="snippet-header"><span class="snippet-title"></span><span class="snippet-actions"><details class="mode-switch"><summary>View</summary><div class="mode-menu"><label><input type="checkbox" class="mode-cb" value="hover" checked> Hover</label><label><input type="checkbox" class="mode-cb" value="slide"> Infoview</label><label class="mode-na" title="Literate view isn't needed here — this snippet has no /-! … -/ prose to render."><input type="checkbox" class="mode-cb" value="literate" disabled> Literate</label><div class="mode-na-note">not needed — no prose in this code</div></div></details></span></div>
+<div class="snippet-header"><span class="snippet-title"></span><span class="snippet-actions"><details class="mode-switch"><summary>View</summary><div class="mode-menu"><label><input type="checkbox" class="mode-cb" value="hover"> Hover</label><label><input type="checkbox" class="mode-cb" value="slide" checked> Infoview</label><label class="mode-na" title="Literate view isn't needed here — this snippet has no /-! … -/ prose to render."><input type="checkbox" class="mode-cb" value="literate" disabled> Literate</label><div class="mode-na-note">not needed — no prose in this code</div></div></details></span></div>
 <code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.open-12" data-verso-hover="0">open</span><span class="inter-text"> </span><span class="unknown token" data-binding="">Std.Do</span><span class="inter-text">
 
 </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-25">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-sum_to_n" data-verso-hover="1">sum_to_n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Int" data-verso-hover="2">Int</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="const token" data-binding="const-Id" data-verso-hover="3">Id</span><span class="inter-text"> </span><span class="const token" data-binding="const-Int" data-verso-hover="2">Int</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:=</span><span class="inter-text"> </span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Term.fun-58">fun</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.9" data-verso-hover="4">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">↦</span><span class="inter-text">

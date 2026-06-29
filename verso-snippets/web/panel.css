@@ -21,16 +21,20 @@ body.slide {
    the panel; corners rounded on the left only. `min-width: 0` + `overflow-x`
    keep long lines scrolling INSIDE the box instead of pushing past the seam. */
 body.slide .snippet-layout > .lean-snippet > code.hl.lean.block {
-  margin: 0;
-  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
-  /* Flatten the right (seam) side only; top corners are handled by the header. */
+  /* Flatten the right (seam) side only; top corners are handled by the header.
+     Keep the normal vertical margins so multi-block snippets keep their gaps
+     (matching hover mode) instead of collapsing into one slab. */
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-right: none;
   scrollbar-width: thin; /* Firefox: a visible (not overlay) scrollbar */
+}
+/* The last block's bottom margin would push the panel below it, so drop it. */
+body.slide .snippet-layout > .lean-snippet > code.hl.lean.block:last-child {
+  margin-bottom: 0;
 }
 /* The header sits above the code in the left column; its right edge meets the
    seam, so square that corner and drop its right border. */
