@@ -265,7 +265,7 @@ def labelCss : String := "
 def escapeLabel (s : String) : String :=
   s.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
 
-/-- Click-to-panel infoview JS/CSS for `--slide` mode (vendored in `web/`). -/
+/-- Click-to-panel infoview JS/CSS for `--infoview` mode (vendored in `web/`). -/
 def panelJs  : String := include_str "web/panel.js"
 def panelCss : String := include_str "web/panel.css"
 def switcherJs  : String := include_str "web/switcher.js"
@@ -374,18 +374,26 @@ def page (blocks : String) (litBlocks : Option String) (docsJson : String) (enha
       "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n" ++
       "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" ++
       "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css\" type=\"text/css\">\n" ++
-      "<style>\nbody { background:#fff; color:#222; max-width:1180px; margin:0 auto; padding:1rem 2rem; }\n" ++
+      "<style>\nbody { background:#fff; color:#222; max-width:880px; margin:0 auto; padding:1rem 2rem; }\n" ++
       highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++ enhanceCss ++ "\n" ++ panelCss ++ "\n" ++
-      (if hasMath then katexCss ++ "\n" else "") ++ (if hasLit then proseCss ++ "\n" else "") ++
+      (if hasMath && hasLit then katexCss ++ "\n" else "") ++ (if hasLit then proseCss ++ "\n" else "") ++
       switcherCss ++ "\n</style>\n</head>\n" ++
       "<body class=\"" ++ bodyClass.trim ++ "\">\n"
     let cb := fun (val txt : String) (on : Bool) =>
       "<label><input type=\"checkbox\" class=\"mode-cb\" value=\"" ++ val ++ "\"" ++
         (if on then " checked" else "") ++ "> " ++ txt ++ "</label>"
+    -- Literate is always offered; if the file has no `/-! … -/` prose it stays
+    -- visible but disabled, with a note explaining there's nothing to render.
+    let litItem :=
+      if hasLit then cb "literate" "Literate" initLit
+      else
+        "<label class=\"mode-na\" title=\"Literate view isn't needed here — this snippet has no /-! … -/ prose to render.\">" ++
+          "<input type=\"checkbox\" class=\"mode-cb\" value=\"literate\" disabled> Literate</label>" ++
+          "<div class=\"mode-na-note\">not needed — no prose in this code</div>"
     let dropdown :=
       "<details class=\"mode-switch\"><summary>View</summary><div class=\"mode-menu\">" ++
         cb "hover" "Hover" initHover ++ cb "slide" "Infoview" initSlide ++
-        (if hasLit then cb "literate" "Literate" initLit else "") ++ "</div></details>"
+        litItem ++ "</div></details>"
     let header :=
       "<div class=\"snippet-header\"><span class=\"snippet-title\">" ++ titleText ++
         "</span><span class=\"snippet-actions\">" ++ dropdown ++ "</span></div>\n"
@@ -404,7 +412,7 @@ def page (blocks : String) (litBlocks : Option String) (docsJson : String) (enha
       "<script>const _versoDocsJson = " ++ docsJson ++ ";</script>\n" ++
       hoverScripts ++
       "<script>" ++ panelJs ++ "</script>\n" ++
-      (if hasMath then "<script>" ++ katexJs ++ "</script>\n<script>" ++ katexMath ++ "</script>\n" else "") ++
+      (if hasMath && hasLit then "<script>" ++ katexJs ++ "</script>\n<script>" ++ katexMath ++ "</script>\n" else "") ++
       "<script>" ++ switcherJs ++ "</script>\n" ++
       (if enhance then "<script>" ++ enhanceJs ++ "</script>\n" else "")
     head ++ body ++ scripts ++ "</body>\n</html>\n"
@@ -444,7 +452,7 @@ def page (blocks : String) (litBlocks : Option String) (docsJson : String) (enha
     head ++ body ++ scripts ++ "</body>\n</html>\n"
 
 def usage : String :=
-  "Usage: render-snippet <input.json> <output.html> [--no-switcher] [--multi-blocks] [--no-enhance] [--no-output] [--literate] [--slide|--slide=click|--slide=both] [--anchor NAME] [--label TEXT]"
+  "Usage: render-snippet <input.json> <output.html> [--no-switcher] [--multi-blocks] [--no-enhance] [--no-output] [--literate] [--infoview|--infoview=click|--infoview=both] [--anchor NAME] [--label TEXT]"
 
 /-- Strip `-- ANCHOR:`/`-- ANCHOR_END:` markers from highlighted code, falling
     back to the original on any anchor-parse error. -/
@@ -516,9 +524,9 @@ def main (args : List String) : IO UInt32 := do
     | "--literate"     :: more => literate := true;    rest := more
     | "--switcher"     :: more => switcher := true;    rest := more
     | "--no-switcher"  :: more => switcher := false;   rest := more
-    | "--slide"        :: more => slide := some false; rest := more
-    | "--slide=click"  :: more => slide := some false; rest := more
-    | "--slide=both"   :: more => slide := some true;  rest := more
+    | "--infoview"       :: more => slide := some false; rest := more
+    | "--infoview=click" :: more => slide := some false; rest := more
+    | "--infoview=both"  :: more => slide := some true;  rest := more
     | "--anchor" :: name :: more => anchorName := some name; rest := more
     | "--label"  :: text :: more => labelText := some text; rest := more
     | a :: more =>
@@ -543,10 +551,10 @@ def main (args : List String) : IO UInt32 := do
     IO.eprintln "render-snippet: no displayable code found in input"
     return 1
 
-  -- `--anchor` focuses a single region, and `--no-enhance` means bare Verso
-  -- styling (the switcher's header/colors are themselves enhancements), so both
-  -- force single-mode.
-  let useSwitcher := switcher && anchorName.isNone && enhance
+  -- `--no-enhance` means bare Verso styling (the switcher header/colors are
+  -- themselves enhancements), so it forces single-mode. `--anchor` now keeps the
+  -- switcher: the region is the Hover/Infoview content, Literate is just disabled.
+  let useSwitcher := switcher && enhance
   -- Literate prose / KaTeX are only worth their bytes when the file uses them.
   let hasProse := mod.items.any (fun it => it.kind == `Lean.Parser.Command.moduleDoc)
   let hasMath := mod.items.any (fun it =>
@@ -557,31 +565,31 @@ def main (args : List String) : IO UInt32 := do
   let mut litHtmls : Array String := #[]
   let mut haveLit := false
 
-  if useSwitcher then
-    -- Render the plain variant always; the literate one only when there is prose
-    -- to render differently (otherwise the two are identical — no point doubling).
-    let (p, st1) := buildPlainBlocks mod.items showOutput multiBlocks st
-    plainHtmls := p; st := st1
-    if hasProse then
-      let (l, st2) := buildLiterateBlocks mod.items showOutput st
-      litHtmls := l; st := st2; haveLit := true
-  else if literate then
-    let (l, st') := buildLiterateBlocks mod.items showOutput st
-    plainHtmls := l; st := st'
-  else
-    match anchorName with
-    | some name =>
-      match (Highlighted.seq (anchorItems.map (·.code))).anchored with
-      | .error e => do IO.eprintln s!"render-snippet: anchor error: {e}"; return 1
-      | .ok a =>
-        match a.anchors[name]? with
-        | some hl =>
-          let (h, st') := renderBlock showOutput hl st
-          st := st'; plainHtmls := #[h.asString]
-        | none => do IO.eprintln s!"render-snippet: no anchor named '{name}'"; return 1
-    | none =>
+  -- The plain content (Hover/Infoview): an anchored region if asked; a literate
+  -- interleaving for single-mode `--literate`; otherwise the whole file.
+  match anchorName with
+  | some name =>
+    match (Highlighted.seq (anchorItems.map (·.code))).anchored with
+    | .error e => do IO.eprintln s!"render-snippet: anchor error: {e}"; return 1
+    | .ok a =>
+      match a.anchors[name]? with
+      | some hl =>
+        let (h, st') := renderBlock showOutput hl st
+        st := st'; plainHtmls := #[h.asString]
+      | none => do IO.eprintln s!"render-snippet: no anchor named '{name}'"; return 1
+  | none =>
+    if literate && !useSwitcher then
+      let (l, st') := buildLiterateBlocks mod.items showOutput st
+      plainHtmls := l; st := st'
+    else
       let (p, st') := buildPlainBlocks mod.items showOutput multiBlocks st
       plainHtmls := p; st := st'
+
+  -- The literate variant for the switcher: only with prose, and not for an
+  -- anchored region (which carries no `/-! … -/` prose of its own).
+  if useSwitcher && hasProse && anchorName.isNone then
+    let (l, st') := buildLiterateBlocks mod.items showOutput st
+    litHtmls := l; st := st'; haveLit := true
 
   let blocks := String.intercalate "\n" plainHtmls.toList
   let litBlocks := if haveLit then some (String.intercalate "\n" litHtmls.toList) else none

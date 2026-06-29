@@ -62,6 +62,27 @@
   margin: 0;
 }
 
+/* A mode that doesn't apply to this snippet: shown but disabled, with a note. */
+.mode-menu label.mode-na,
+.mode-menu label.mode-na input {
+  cursor: not-allowed;
+}
+.mode-menu label.mode-na {
+  opacity: 0.5;
+}
+.mode-menu label.mode-na:hover {
+  background: none;
+}
+.mode-na-note {
+  padding: 0 8px 3px 30px;
+  margin-top: -1px;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: #8b949e;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
+}
+
 /* Literate variant: hidden by default, shown in lit-view; the plain code blocks
    (direct children of .lean-snippet) hide in lit-view. */
 .snippet-content.literate {

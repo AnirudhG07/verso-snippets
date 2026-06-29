@@ -14,7 +14,8 @@
 #
 # By default the output has a "View" dropdown (Hover / Infoview / Literate) you can
 # toggle live; a file with /-! … -/ prose starts in Literate view. --anchor forces single mode.
-#   --slide[=click|both]  Click a name/tactic for info in a right-side panel; =both keeps hovers too
+#   --infoview[=click|both]  Click a name/tactic for info in a right-side panel (inspired
+#                            by leanprover/verso-slides); =both also keeps hover tooltips
 #   --no-output         Hide #eval / #check output (shown at the block bottom by default)
 #   --no-enhance        Skip GitHub colors + Copy / Try-it buttons
 #   --setup             First-time setup: build the renderer
@@ -42,7 +43,7 @@ BASE="lean-code"
 MULTI_BLOCKS=""
 NO_ENHANCE=""
 NO_OUTPUT=""
-SLIDE=""
+INFOVIEW=""
 LITERATE=""
 NO_SWITCHER=""
 ANCHOR=""
@@ -58,8 +59,8 @@ while [[ $# -gt 0 ]]; do
     --no-output)     NO_OUTPUT="--no-output"; shift ;;
     --literate)      LITERATE="--literate"; shift ;;
     --no-switcher)   NO_SWITCHER="--no-switcher"; shift ;;
-    --slide)         SLIDE="--slide"; shift ;;
-    --slide=*)       SLIDE="$1"; shift ;;
+    --infoview)      INFOVIEW="--infoview"; shift ;;
+    --infoview=*)    INFOVIEW="$1"; shift ;;
     --anchor)        ANCHOR="--anchor $2"; shift 2 ;;
     --label)         LABEL=(--label "$2"); shift 2 ;;
     --*)             echo "Unknown option: $1" >&2; exit 1 ;;
@@ -118,7 +119,7 @@ HL_JSON=".lake/build/highlighted/Snippet.json"
 # ── 3. Render the JSON to a single self-contained HTML file ───────────────────
 echo "lean-snippet: rendering ..."
 OUT="${BASE}.html"
-.lake/build/bin/render-snippet "$HL_JSON" "$SNIPPETS_HOME/$OUT" $NO_SWITCHER $MULTI_BLOCKS $NO_ENHANCE $NO_OUTPUT $LITERATE $SLIDE $ANCHOR "${LABEL[@]}"
+.lake/build/bin/render-snippet "$HL_JSON" "$SNIPPETS_HOME/$OUT" $NO_SWITCHER $MULTI_BLOCKS $NO_ENHANCE $NO_OUTPUT $LITERATE $INFOVIEW $ANCHOR "${LABEL[@]}"
 [[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
 echo "  → $USER_CWD/$OUT"
 echo "lean-snippet: done!"

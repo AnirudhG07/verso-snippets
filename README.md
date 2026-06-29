@@ -29,7 +29,6 @@ Check out the demo's on the webpage [here](https://anirudhg07.github.io/src/proj
 <img width="650" height="400" alt="image" src="https://github.com/user-attachments/assets/21832169-7139-4eb4-a9f2-78bf517b9319" />
 </div>
 
-
 ## The "View" switcher — the main thing
 
 Every snippet ships with a **View** dropdown in its header, next to the Copy and
@@ -43,19 +42,22 @@ no regeneration and no extra files.
 </div>
 
 The three are independent checkboxes, so they combine freely (e.g. **Literate**
-prose *with* the **Infoview** panel). The opening view is picked for you — a file
+prose _with_ the **Infoview** panel). The opening view is picked for you — a file
 with `/-! … -/` prose opens in **Literate**, otherwise in **Hover** — and the
 flags below just set that initial state:
 
-| Flag                      | Opening view                                          |
-| ------------------------- | ----------------------------------------------------- |
-| *(none)*                  | Hover — or Literate if the file has `/-! … -/` prose  |
-| `--slide` / `--slide=both`| Infoview (`=both` keeps hover tooltips too)           |
-| `--literate`              | Literate                                              |
-| `--no-switcher`           | no dropdown — a single fixed mode                     |
+| Flag                             | Opening view                                         |
+| -------------------------------- | ---------------------------------------------------- |
+| _(none)_                         | Hover — or Literate if the file has `/-! … -/` prose |
+| `--infoview` / `--infoview=both` | Infoview (`=both` keeps hover tooltips too)          |
+| `--literate`                     | Literate                                             |
+| `--no-switcher`                  | no dropdown — a single fixed mode                    |
 
-`--anchor` (a focused region) and `--no-enhance` (plain Verso styling) always
-produce a single fixed mode.
+`--no-switcher` and `--no-enhance` (plain Verso styling) produce a single fixed
+mode. `--anchor` keeps the switcher — Hover and Infoview work on the selected
+region. The **Literate** checkbox is always present; when there's no `/-! … -/`
+prose to show (an anchored region, or a file with none) it stays in the menu but
+greyed-out and disabled, with a note that there's nothing to render.
 
 ### Hover
 
@@ -69,7 +71,7 @@ own pace.
 <!-- <img width="700" alt="hover tooltip" src="" /> -->
 </div>
 
-### Infoview — `--slide`
+### Infoview — `--infoview`
 
 For slides and embeds, hover tooltips get in the way. **Infoview** joins an info
 panel to the right of the code (split by a blue seam): click a name for its
@@ -80,8 +82,8 @@ occurrences — all in the panel, nothing popping up over the code.
 <img width="1221" height="499" alt="image" src="https://github.com/user-attachments/assets/03ce0452-3873-404c-8dc1-947d1310a058" />
 </div>
 
-`--slide=both` keeps the normal hover tooltips working alongside the panel.
-Inspired by [verso-slides](https://github.com/leanprover/verso-slides).
+`--infoview=both` keeps the normal hover tooltips working alongside the panel.
+This view is inspired by [verso-slides](https://github.com/leanprover/verso-slides).
 
 ### Literate — `--literate`
 
@@ -96,7 +98,6 @@ their declarations as usual.
 </div>
 
 Inspired by [verso-templates](https://github.com/leanprover/verso-templates).
-
 
 ## Marking regions to convert to Html
 
@@ -188,16 +189,16 @@ lean-snippet proof.lean
 
 ## Options
 
-| Flag                       | Description                                                    |
-| -------------------------- | -------------------------------------------------------------- |
-| `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)           |
-| `--multi-blocks`           | One box per top-level command (default: a single box)          |
-| `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region |
-| `--literate`               | Start in literate mode (`/-! … -/` → Markdown + `$LaTeX$` prose) |
-| `--slide[=click\|both]`    | Start in Infoview (click-panel) mode; `=both` also keeps hovers |
-| `--no-switcher`            | Emit a single fixed mode instead of the default "View" dropdown |
-| `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button |
-| `--setup`                  | First-time build of the renderer                               |
+| Flag                       | Description                                                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)                                                                                     |
+| `--multi-blocks`           | One box per top-level command (default: a single box)                                                                                    |
+| `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region                                                                           |
+| `--literate`               | Start in literate mode (`/-! … -/` → Markdown + `$LaTeX$` prose)                                                                         |
+| `--infoview[=click\|both]` | Start in Infoview (click-panel) mode; `=both` also keeps hovers (inspired by [verso-slides](https://github.com/leanprover/verso-slides)) |
+| `--no-switcher`            | Emit a single fixed mode instead of the default "View" dropdown                                                                          |
+| `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button                                                                           |
+| `--setup`                  | First-time build of the renderer                                                                                                         |
 
 ## How it works
 
@@ -208,6 +209,45 @@ The `lean-snippet` script chains three steps — all Lean, no scraping:
 3. **Assemble** — it inlines Verso's `highlightingStyle`/`highlightingJs` plus the vendored `popper`/`tippy` so the single output file is fully self-contained.
 
 Because `render-snippet` is input-independent it is built once; only the cheap highlight step re-runs per file. And because SubVerso supports every Lean release back to 4.0.0, old snippets keep rendering as Lean and Verso move forward.
+
+## Custom CSS
+
+Every snippet is one self-contained `.html` with all its styling in a single
+`<style>` block, so restyling is easy — two ways, depending on scope.
+
+**Per-file tweak (no rebuild).** Open the generated `.html` and drop your own
+`<style>` anywhere _after_ the existing one; later rules win by the normal CSS
+cascade. For example, to narrow a snippet and restyle the header bar:
+
+```html
+<style>
+  body {
+    max-width: 720px;
+  }
+  .snippet-header {
+    background: #1e1e2e;
+  }
+  .snippet-title {
+    color: #fff;
+  }
+</style>
+```
+
+The class names are stable: `.lean-snippet`, `.snippet-header`,
+`.snippet-actions`, `code.hl.lean.block`, `.info-panel`, `.prose`, and the
+`.mode-switch` dropdown; syntax colors come from Verso's
+`code.hl.lean.block .token…` classes.
+
+**Tool-wide change (rebuild once).** To change the defaults for _every_ snippet,
+edit the stylesheet sources and rebuild:
+
+- `verso-snippets/web/panel.css` — the Infoview panel + blue seam
+- `verso-snippets/web/switcher.css` — the View dropdown
+- the `enhanceCss` / `labelCss` / `proseCss` string defs in
+  `verso-snippets/RenderSnippet.lean` — GitHub colors, header bar, and prose
+
+Then run `./lean-snippet --setup` (the CSS is embedded into the renderer at build
+time). The page width lives in the `body { max-width: … }` rule.
 
 ## Acknowledgements
 

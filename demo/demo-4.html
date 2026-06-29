@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css" type="text/css">
 <style>
-body { background:#fff; color:#222; max-width:1180px; margin:0 auto; padding:1rem 2rem; }
+body { background:#fff; color:#222; max-width:880px; margin:0 auto; padding:1rem 2rem; }
 
 
 .hl.lean {
@@ -751,11 +751,11 @@ code.hl.lean.block {
   border-color: #0969da; color: #0969da; background: #f3f4f6;
 }
 
-/* `lean-snippet --slide`: the info panel is JOINED to the code block as one
+/* `lean-snippet --infoview`: the info panel is JOINED to the code block as one
    unit, split by a thick blue seam. Click a name/tactic to fill the panel. */
 
 body.slide {
-  max-width: 1180px;
+  max-width: 880px;
 }
 
 .snippet-layout {
@@ -1038,6 +1038,27 @@ body.slide-click code.hl.lean.block .tactic-state {
 }
 .mode-menu input {
   margin: 0;
+}
+
+/* A mode that doesn't apply to this snippet: shown but disabled, with a note. */
+.mode-menu label.mode-na,
+.mode-menu label.mode-na input {
+  cursor: not-allowed;
+}
+.mode-menu label.mode-na {
+  opacity: 0.5;
+}
+.mode-menu label.mode-na:hover {
+  background: none;
+}
+.mode-na-note {
+  padding: 0 8px 3px 30px;
+  margin-top: -1px;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: #8b949e;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
 }
 
 /* Literate variant: hidden by default, shown in lit-view; the plain code blocks
@@ -1396,7 +1417,7 @@ window.onload = () => {
   });
 }
 </script>
-<script>// Click-to-panel infoview for `lean-snippet --slide`.
+<script>// Click-to-panel infoview for `lean-snippet --infoview`.
 //
 // Instead of hover tooltips, the reader clicks a name, tactic, or message and
 // its details appear in the side panel. This avoids hover boxes popping up over

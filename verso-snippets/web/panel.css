@@ -1,8 +1,8 @@
-/* `lean-snippet --slide`: the info panel is JOINED to the code block as one
+/* `lean-snippet --infoview`: the info panel is JOINED to the code block as one
    unit, split by a thick blue seam. Click a name/tactic to fill the panel. */
 
 body.slide {
-  max-width: 1180px;
+  max-width: 880px;
 }
 
 .snippet-layout {

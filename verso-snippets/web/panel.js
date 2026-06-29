@@ -1,4 +1,4 @@
-// Click-to-panel infoview for `lean-snippet --slide`.
+// Click-to-panel infoview for `lean-snippet --infoview`.
 //
 // Instead of hover tooltips, the reader clicks a name, tactic, or message and
 // its details appear in the side panel. This avoids hover boxes popping up over
