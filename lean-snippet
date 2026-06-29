@@ -9,13 +9,13 @@
 #   --multi-blocks      One box per top-level command (default: a single box)
 #   --anchor NAME       Show only the region marked -- ANCHOR: NAME / -- ANCHOR_END: NAME
 #   --label TEXT        Caption above the snippet (defaults to the anchor name)
-#   --literate          Start in literate mode: /-! … -/ blocks as prose (Markdown + \$LaTeX\$)
+#   --literate, -l      Open with Literate on: /-! … -/ blocks as prose (Markdown + \$LaTeX\$)
+#   --infoview, -i      Open with the Infoview panel on — click a name/tactic for its info in a
+#       [=both]         right-side panel; -i=both also turns hover on. (inspired by verso-slides)
 #   --no-switcher       Emit a single fixed mode instead of the default "View" switcher
 #
-# By default the output has a "View" dropdown (Hover / Infoview / Literate) you can
-# toggle live; a file with /-! … -/ prose starts in Literate view. --anchor forces single mode.
-#   --infoview[=click|both]  Click a name/tactic for info in a right-side panel (inspired
-#                            by leanprover/verso-slides); =both also keeps hover tooltips
+# The output has a live "View" dropdown (Hover / Infoview / Literate). Each mode flag turns ITS
+# mode on; with NO mode flag, all start on. --anchor keeps the switcher (Literate disabled).
 #   --no-output         Hide #eval / #check output (shown at the block bottom by default)
 #   --no-enhance        Skip GitHub colors + Copy / Try-it buttons
 #   --setup             First-time setup: build the renderer
@@ -57,10 +57,11 @@ while [[ $# -gt 0 ]]; do
     --multi-blocks)  MULTI_BLOCKS="--multi-blocks"; shift ;;
     --no-enhance)    NO_ENHANCE="--no-enhance"; shift ;;
     --no-output)     NO_OUTPUT="--no-output"; shift ;;
-    --literate)      LITERATE="--literate"; shift ;;
+    --literate|-l)   LITERATE="--literate"; shift ;;
     --no-switcher)   NO_SWITCHER="--no-switcher"; shift ;;
-    --infoview)      INFOVIEW="--infoview"; shift ;;
+    --infoview|-i)   INFOVIEW="--infoview"; shift ;;
     --infoview=*)    INFOVIEW="$1"; shift ;;
+    -i=*)            INFOVIEW="--infoview=${1#*=}"; shift ;;
     --anchor)        ANCHOR="--anchor $2"; shift 2 ;;
     --label)         LABEL=(--label "$2"); shift 2 ;;
     --*)             echo "Unknown option: $1" >&2; exit 1 ;;
@@ -105,7 +106,7 @@ fi
 cd "$SNIPPETS_HOME"
 
 # ── 1. Place the user's code as the `Snippet` module ──────────────────────────
-cp "$SCRATCH" verso-snippets/Snippet.lean
+cp "$SCRATCH" Snippet.lean
 
 # ── 2. Build the renderer (cached) and highlight the module to JSON ───────────
 echo "lean-snippet: building renderer ..."

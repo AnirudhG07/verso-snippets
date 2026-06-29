@@ -13,15 +13,18 @@ name = "subverso"
 git = "https://github.com/leanprover/subverso.git"
 rev = "52b9dfbd2658408e37ae6e8b72601ddeaaa25a0c"
 
-# The user's Lean code lives here as the `Snippet` module. SubVerso's
-# `:highlighted` facet turns it into highlighted JSON without a Verso document.
+# The user's Lean code lives as the `Snippet` module. SubVerso's `:highlighted`
+# facet turns it into highlighted JSON without a Verso document.
 [[lean_lib]]
 name = "Snippet"
-srcDir = "verso-snippets"
+
+# The renderer library (VersoSnippet.Render / .Literate / .Assets / .Page).
+[[lean_lib]]
+name = "VersoSnippet"
+globs = ["VersoSnippet.*"]
 
 # Reads the highlighted JSON and renders a self-contained HTML snippet using
 # Verso's own rendering library. Input-independent, so it is built once.
 [[lean_exe]]
 name = "render-snippet"
-root = "RenderSnippet"
-srcDir = "verso-snippets"
+root = "Main"

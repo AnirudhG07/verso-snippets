@@ -5,7 +5,7 @@
 *.c
 
 # The `Snippet` module is overwritten with the user's code on each run
-/verso-snippets/Snippet.lean
+/Snippet.lean
 
 # Generated output HTML
 /lean-code*.html

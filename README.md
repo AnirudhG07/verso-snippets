@@ -216,7 +216,7 @@ lean-snippet proof.lean
 The `lean-snippet` script chains three steps — all Lean, no scraping:
 
 1. **Highlight** — your `.lean` becomes the `Snippet` module, and `lake build Snippet:highlighted` runs [SubVerso](https://github.com/leanprover/subverso), which drives the Lean compiler to emit highlighted **JSON** (tokens, hovers, `#eval` output, proof states). No Verso document is built.
-2. **Render** — `render-snippet` (`verso-snippets/RenderSnippet.lean`) reads that JSON and uses Verso's own HTML library (`Verso.Code.Highlighted`) to produce the markup, CSS, and JS.
+2. **Render** — `render-snippet` (`Main.lean` + the `VersoSnippet` library) reads that JSON and uses Verso's own HTML library (`Verso.Code.Highlighted`) to produce the markup, CSS, and JS.
 3. **Assemble** — it inlines Verso's `highlightingStyle`/`highlightingJs` plus the vendored `popper`/`tippy` so the single output file is fully self-contained.
 
 Because `render-snippet` is input-independent it is built once; only the cheap highlight step re-runs per file. And because SubVerso supports every Lean release back to 4.0.0, old snippets keep rendering as Lean and Verso move forward.
@@ -252,10 +252,10 @@ The class names are stable: `.lean-snippet`, `.snippet-header`,
 **Tool-wide change (rebuild once).** To change the defaults for _every_ snippet,
 edit the stylesheet sources and rebuild:
 
-- `verso-snippets/web/panel.css` — the Infoview panel + blue seam
-- `verso-snippets/web/switcher.css` — the View dropdown
-- the `enhanceCss` / `labelCss` / `proseCss` string defs in
-  `verso-snippets/RenderSnippet.lean` — GitHub colors, header bar, and prose
+- `VersoSnippet/web/panel.css` — the Infoview panel + blue seam
+- `VersoSnippet/web/switcher.css` — the View dropdown
+- the `enhanceCss` / `labelCss` string defs in `VersoSnippet/Assets.lean`
+  (GitHub colors, header bar) and `proseCss` in `VersoSnippet/Literate.lean`
 
 Then run `./lean-snippet --setup` (the CSS is embedded into the renderer at build
 time). The page width lives in the `body { max-width: … }` rule.
