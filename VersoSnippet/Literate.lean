@@ -40,7 +40,7 @@ def stripModuleDoc (s : String) : String :=
     blocks go through `blockFromMarkdown'` → `Block.toHtml`. -/
 def proseHtml (md : String) (st0 : Verso.Code.Hover.State Html) :
     String × Verso.Code.Hover.State Html := Id.run do
-  let opts : Verso.Doc.Html.Options Id := { logError := fun _ => pure () }
+  let opts : Verso.Doc.Html.Options := {}
   match MD4Lean.parse md (MD4Lean.MD_DIALECT_COMMONMARK ||| MD4Lean.MD_FLAG_LATEXMATHSPANS) with
   | none => return ("<pre>" ++ ((md.replace "&" "&amp;").replace "<" "&lt;") ++ "</pre>", st0)
   | some doc =>
@@ -51,14 +51,14 @@ def proseHtml (md : String) (st0 : Verso.Code.Hover.State Html) :
       | .header lvl text =>
         let inls : Array (Inline G) :=
           text.filterMap (fun t => (inlineFromMarkdown' (g := G) t).toOption)
-        let (h, st') := (G.toHtml opts () () {} {} {} (Inline.concat inls)).run st
+        let (h, st') := (G.toHtml (m := Id) opts () () {} {} {} (Inline.concat inls)).run st
         st := st'
         let n := toString (min (max lvl 1) 6)
         out := out ++ "<h" ++ n ++ ">" ++ h.asString ++ "</h" ++ n ++ ">\n"
       | _ =>
         match blockFromMarkdown' (g := G) mb (handleHeaders := strongEmphHeaders') with
         | .ok b =>
-          let (h, st') := (G.toHtml opts () () {} {} {} b).run st
+          let (h, st') := (G.toHtml (m := Id) opts () () {} {} {} b).run st
           st := st'; out := out ++ h.asString ++ "\n"
         | .error _ => pure ()
     return (out, st)

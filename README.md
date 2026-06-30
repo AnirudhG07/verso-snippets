@@ -157,7 +157,7 @@ output and the goal state at each tactic are captured too, and appear on hover.
 
 ## Setup
 
-Currently Version supported **Lean v4.29.0**.
+Currently Version supported **Lean v4.31.0**. Mathlib is required in ONLY to support Mathlib code(**v4.31.0** is supported in this repository). Similarly any other library you use, should be added as a dependency in `lakefile.toml`.
 
 The whole tool is driven by one shell script: **`lean-snippet`**. Clone the repo
 and run the one-time setup, which downloads Verso and builds the binaries:
