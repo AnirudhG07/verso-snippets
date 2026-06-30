@@ -5,13 +5,12 @@ defaultTargets = ["render-snippet"]
 [[require]]
 name = "verso"
 git = "https://github.com/leanprover/verso.git"
-rev = "v4.29.0"
+rev = "v4.31.0"
 
-# Pinned to the exact revision Verso v4.29.0 depends on, to avoid toolchain drift.
 [[require]]
 name = "subverso"
 git = "https://github.com/leanprover/subverso.git"
-rev = "52b9dfbd2658408e37ae6e8b72601ddeaaa25a0c"
+rev = "main"
 
 # The user's Lean code lives as the `Snippet` module. SubVerso's `:highlighted`
 # facet turns it into highlighted JSON without a Verso document.

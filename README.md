@@ -198,6 +198,40 @@ ln -s "$PWD/lean-snippet" ~/bin/lean-snippet
 lean-snippet proof.lean
 ```
 
+## From the Lean web editor (live.lean-lang.org)
+
+Every snippet's **Try it!** button opens its code in
+[live.lean-lang.org](https://live.lean-lang.org). To go the other way, pass a
+share link from the editor to `lean-snippet` with `link=`:
+
+```bash
+./lean-snippet link="https://live.lean-lang.org/#codez=…"            # a share URL
+./lean-snippet link="https://live.lean-lang.org/#code=…" -o demo -i  # + any flags
+pbpaste | ./lean-snippet link=-                                      # or pipe the code in
+```
+
+It understands all three of the editor's share formats — `#code=` (plain),
+`#codez=` (LZ-string compressed), and `#url=` (loaded from a URL) — decoding them
+with a small vendored decoder (`decode-link.py`, no extra dependencies). The
+recovered code becomes the input, so every other flag still applies.
+
+> **The code must build in this repo.** SubVerso compiles it, so its imports have
+> to resolve locally. This repo ships **Std** (`import Std`) — anything using only
+> core Lean + Std converts as-is. The editor's default playground also has
+> **Mathlib**; to convert Mathlib code, add it as a dependency (matching the
+> `lean-toolchain`, currently `leanprover/lean4:4.29.0`):
+>
+> ```toml
+> # lakefile.toml
+> [[require]]
+> name = "mathlib"
+> git  = "https://github.com/leanprover-community/mathlib4.git"
+> rev  = "v4.29.0"
+> ```
+>
+> then `lake exe cache get` (downloads prebuilt `.olean`s — without it Mathlib
+> takes hours to build). After that, `import Mathlib` snippets convert too.
+
 ## Options
 
 | Flag                       | Description                                                                                                                              |

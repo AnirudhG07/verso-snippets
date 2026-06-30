@@ -3,6 +3,7 @@
 #
 # Usage:
 #   lean-snippet [file.lean] [options]
+#   lean-snippet link="<live.lean-lang.org URL>" [options]   (or link=- to read stdin)
 #
 # Options:
 #   -o, --output NAME   Base name for the output file (default: lean-code)
@@ -39,6 +40,7 @@ USER_CWD="$(pwd)"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 SCRATCH=""
+LINK=""
 BASE="lean-code"
 MULTI_BLOCKS=""
 NO_ENHANCE=""
@@ -64,6 +66,8 @@ while [[ $# -gt 0 ]]; do
     -i=*)            INFOVIEW="--infoview=${1#*=}"; shift ;;
     --anchor)        ANCHOR="--anchor $2"; shift 2 ;;
     --label)         LABEL=(--label "$2"); shift 2 ;;
+    link=*)          LINK="${1#link=}"; shift ;;
+    --link)          LINK="$2"; shift 2 ;;
     --*)             echo "Unknown option: $1" >&2; exit 1 ;;
     *)               SCRATCH="$1"; shift ;;
   esac
@@ -93,6 +97,14 @@ if $SETUP; then
 fi
 
 # ── Resolve input file ────────────────────────────────────────────────────────
+# `link=<url>` (or `--link <url>`, or `link=-` for stdin) pulls the code from a
+# live.lean-lang.org share link and uses that as the input.
+if [[ -n "$LINK" ]]; then
+  DECODED="${TMPDIR:-/tmp}/lean-snippet-link.lean"
+  python3 "$SNIPPETS_HOME/decode-link.py" "$LINK" > "$DECODED" \
+    || { echo "Error: could not decode link" >&2; exit 1; }
+  SCRATCH="$DECODED"
+fi
 if [[ -z "$SCRATCH" ]]; then
   if [[ -f "$USER_CWD/scratch.lean" ]]; then
     SCRATCH="$USER_CWD/scratch.lean"
