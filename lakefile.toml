@@ -28,6 +28,12 @@ globs = ["VersoSnippet.*"]
 name = "render-snippet"
 root = "Main"
 
+# Decode a live.lean-lang.org share link (#code= / #codez= / #url=) to Lean
+# source. Used by `lean-snippet link=…`. A Lean port of the old decode-link.py.
+[[lean_exe]]
+name = "decode-link"
+root = "VersoSnippet.DecodeLink"
+
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"

@@ -48,8 +48,8 @@ flags below just set that initial state:
 | Flag                             | Opening view                                         |
 | -------------------------------- | ---------------------------------------------------- |
 | _(none)_                         | Hover — or Literate if the file has `/-! … -/` prose |
-| `--infoview` / `--infoview=both` | Infoview (`=both` keeps hover tooltips too)          |
-| `--literate`                     | Literate                                             |
+| `--infoview` / `-i` / `--infoview=both` | Infoview (`=both` keeps hover tooltips too)          |
+| `--literate` / `-l`                     | Literate                                             |
 | `--no-switcher`                  | no dropdown — a single fixed mode                    |
 
 `--no-switcher` and `--no-enhance` (plain Verso styling) produce a single fixed
@@ -57,6 +57,31 @@ mode. `--anchor` keeps the switcher — Hover and Infoview work on the selected
 region. The **Literate** checkbox is always present; when there's no `/-! … -/`
 prose to show (an anchored region, or a file with none) it stays in the menu but
 greyed-out and disabled, with a note that there's nothing to render.
+
+## From the Lean web editor (live.lean-lang.org)
+
+Every snippet's **Try it!** button opens its code in
+[live.lean-lang.org](https://live.lean-lang.org). To go the other way, pass a
+share link from the editor to `lean-snippet` with `link=`:
+
+```bash
+./lean-snippet link="https://live.lean-lang.org/#codez=…"            # a share URL
+./lean-snippet link="https://live.lean-lang.org/#code=…" -o livelean-snippet -i  # + any flags
+```
+
+It understands all three of the editor's share formats — `#code=` (plain),
+`#codez=` (LZ-string compressed), and `#url=` (loaded from a URL) — decoding them
+with a small built-in decoder (the `decode-link` Lean executable, no extra
+dependencies; `#url=` is fetched with `curl`). The recovered code becomes the
+input, so every other flag still applies.
+
+> **The code must build in this repo.** SubVerso compiles it, so its imports have
+> to resolve locally. This repo ships both **Std** (`import Std`) and **Mathlib**
+> (`import Mathlib`) — matching the editor's default playground — so code using
+> core Lean, Std, or Mathlib converts as-is. The dependencies are pinned to the
+> `lean-toolchain` (currently `leanprover/lean4:v4.31.0`); after a fresh clone run
+> `lake exe cache get` once to download Mathlib's prebuilt `.olean`s (without it
+> Mathlib takes hours to build).
 
 ### Hover
 
@@ -198,52 +223,21 @@ ln -s "$PWD/lean-snippet" ~/bin/lean-snippet
 lean-snippet proof.lean
 ```
 
-## From the Lean web editor (live.lean-lang.org)
-
-Every snippet's **Try it!** button opens its code in
-[live.lean-lang.org](https://live.lean-lang.org). To go the other way, pass a
-share link from the editor to `lean-snippet` with `link=`:
-
-```bash
-./lean-snippet link="https://live.lean-lang.org/#codez=…"            # a share URL
-./lean-snippet link="https://live.lean-lang.org/#code=…" -o demo -i  # + any flags
-pbpaste | ./lean-snippet link=-                                      # or pipe the code in
-```
-
-It understands all three of the editor's share formats — `#code=` (plain),
-`#codez=` (LZ-string compressed), and `#url=` (loaded from a URL) — decoding them
-with a small vendored decoder (`decode-link.py`, no extra dependencies). The
-recovered code becomes the input, so every other flag still applies.
-
-> **The code must build in this repo.** SubVerso compiles it, so its imports have
-> to resolve locally. This repo ships **Std** (`import Std`) — anything using only
-> core Lean + Std converts as-is. The editor's default playground also has
-> **Mathlib**; to convert Mathlib code, add it as a dependency (matching the
-> `lean-toolchain`, currently `leanprover/lean4:4.29.0`):
->
-> ```toml
-> # lakefile.toml
-> [[require]]
-> name = "mathlib"
-> git  = "https://github.com/leanprover-community/mathlib4.git"
-> rev  = "v4.29.0"
-> ```
->
-> then `lake exe cache get` (downloads prebuilt `.olean`s — without it Mathlib
-> takes hours to build). After that, `import Mathlib` snippets convert too.
-
 ## Options
 
 | Flag                       | Description                                                                                                                              |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)                                                                                     |
-| `--multi-blocks`           | One box per top-level command (default: a single box)                                                                                    |
+| `link=URL`, `--link URL`         | Use code from a live.lean-lang.org share link (`link=-` reads stdin)          |
 | `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region                                                                           |
-| `--literate`               | Start in literate mode (`/-! … -/` → Markdown + `$LaTeX$` prose)                                                                         |
-| `--infoview[=click\|both]` | Start in Infoview (click-panel) mode; `=both` also keeps hovers (inspired by [verso-slides](https://github.com/leanprover/verso-slides)) |
+| `--label TEXT`             | Caption shown in the snippet header (defaults to the anchor name)                                                                        |
+| `--literate`, `-l`         | Start in literate mode (`/-! … -/` → Markdown + `$LaTeX$` prose)                                                                         |
+| `--infoview[=click\|both]`, `-i` | Start in Infoview (click-panel) mode; `=both` also keeps hovers (inspired by [verso-slides](https://github.com/leanprover/verso-slides)) |
+| `--multi-blocks`           | One box per top-level command (default: a single box)                                                                                    |
 | `--no-switcher`            | Emit a single fixed mode instead of the default "View" dropdown                                                                          |
+| `--no-output`              | Hide `#eval` / `#check` output (shown at the block bottom by default)                                                                    |
 | `--no-enhance`             | Plain Verso styling — no GitHub colors, Copy, or Try-it button                                                                           |
-| `--setup`                  | First-time build of the renderer                                                                                                         |
+| `--setup`                  | First-time build of the `render-snippet` and `decode-link` binaries                                                                      |
 
 ## How it works
 

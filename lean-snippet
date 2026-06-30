@@ -92,6 +92,7 @@ if $SETUP; then
   echo "lean-snippet: setting up in $SNIPPETS_HOME ..."
   cd "$SNIPPETS_HOME"
   build_step render-snippet
+  build_step decode-link
   echo "Setup complete. Run: lean-snippet your-file.lean"
   exit 0
 fi
@@ -101,7 +102,7 @@ fi
 # live.lean-lang.org share link and uses that as the input.
 if [[ -n "$LINK" ]]; then
   DECODED="${TMPDIR:-/tmp}/lean-snippet-link.lean"
-  python3 "$SNIPPETS_HOME/decode-link.py" "$LINK" > "$DECODED" \
+  "$SNIPPETS_HOME/.lake/build/bin/decode-link" "$LINK" > "$DECODED" \
     || { echo "Error: could not decode link" >&2; exit 1; }
   SCRATCH="$DECODED"
 fi
