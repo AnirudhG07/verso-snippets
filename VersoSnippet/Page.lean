@@ -39,7 +39,7 @@ def page (blocks : String) (litBlocks : Option String) (docsJson : String) (enha
       highlightingStyle ++ "\n" ++ labelCss ++ "\n" ++ enhanceCss ++ "\n" ++ panelCss ++ "\n" ++
       (if hasMath && hasLit then katexCss ++ "\n" else "") ++ (if hasLit then proseCss ++ "\n" else "") ++
       switcherCss ++ "\n</style>\n</head>\n" ++
-      "<body class=\"" ++ bodyClass.trim ++ "\">\n"
+      "<body class=\"" ++ bodyClass.trimAscii ++ "\">\n"
     let cb := fun (val txt : String) (on : Bool) =>
       "<label><input type=\"checkbox\" class=\"mode-cb\" value=\"" ++ val ++ "\"" ++
         (if on then " checked" else "") ++ "> " ++ txt ++ "</label>"
