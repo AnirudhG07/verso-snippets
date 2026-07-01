@@ -75,14 +75,6 @@ with a small built-in decoder (the `decode-link` Lean executable, no extra
 dependencies; `#url=` is fetched with `curl`). The recovered code becomes the
 input, so every other flag still applies.
 
-> **The code must build in this repo.** SubVerso compiles it, so its imports have
-> to resolve locally. This repo ships both **Std** (`import Std`) and **Mathlib**
-> (`import Mathlib`) — matching the editor's default playground — so code using
-> core Lean, Std, or Mathlib converts as-is. The dependencies are pinned to the
-> `lean-toolchain` (currently `leanprover/lean4:v4.31.0`); after a fresh clone run
-> `lake exe cache get` once to download Mathlib's prebuilt `.olean`s (without it
-> Mathlib takes hours to build).
-
 ### Hover
 
 The classic view: hover any name, tactic, or `#eval` to get a tooltip with its
@@ -182,7 +174,10 @@ output and the goal state at each tactic are captured too, and appear on hover.
 
 ## Setup
 
-Currently Version supported **Lean v4.31.0**. Mathlib is required in ONLY to support Mathlib code(**v4.31.0** is supported in this repository). Similarly any other library you use, should be added as a dependency in `lakefile.toml`.
+Currently the supported toolchain is **Lean v4.31.0** (pinned in `lean-toolchain`).
+The tool itself depends only on **Verso + SubVerso** — no Mathlib. Mathlib (or any
+other library) is only needed if your *snippet code* imports it, which you will have
+to manually add it.
 
 The whole tool is driven by one shell script: **`lean-snippet`**. Clone the repo
 and run the one-time setup, which downloads Verso and builds the binaries:
@@ -190,7 +185,7 @@ and run the one-time setup, which downloads Verso and builds the binaries:
 ```bash
 git clone https://github.com/AnirudhG07/verso-snippets
 cd verso-snippets
-./lean-snippet --setup
+./lean-snippet --setup # will do `lake build` for you
 ```
 
 ## Usage
@@ -214,13 +209,41 @@ repo's `scratch.lean` as a fallback) — handy for quick experiments:
 The output `.html` is written both into the repo and into your current
 directory, so you can run the script from anywhere your `.lean` file lives.
 
-### Install globally (optional)
+### Use it in another project
 
-Symlink it onto your `PATH` so you can drop the `./` and call it from any directory:
+You can either write your Lean code in this repo and convert it, or you can run the tool from **inside any other Lean project**(of your own possibly). 
+
+In order to install this repo inside your project, you can add it in your `lakefile.toml`:
+
+```toml
+[[require]]
+name = "verso-snippets"
+git = "https://github.com/AnirudhG07/verso-snippets"
+rev = "master"
+```
+
+We assume you have all other dependencies installed and working, since verso-snippets will create snippets only when the code builds correctly. Now you can run the following commands to configure the tool:
 
 ```bash
-ln -s "$PWD/lean-snippet" ~/bin/lean-snippet
-lean-snippet proof.lean
+lake update verso-snippets
+# the script ships INSIDE the package Lake just fetched:
+.lake/packages/verso-snippets/lean-snippet --setup   # builds render-snippet + decode-link
+```
+
+> **Optional — put it on your `PATH`** so you can drop the long path:
+> ```bash
+> ln -s "$PWD/.lake/packages/verso-snippets/lean-snippet" ~/bin/lean-snippet
+> ```
+
+### Render
+
+Run the script from anywhere inside the host project (use
+`.lake/packages/verso-snippets/lean-snippet` if you skipped the symlink above):
+
+```bash
+lean-snippet proof.lean                 # writes proof.lean → Snippet.lean, highlights, renders
+# OR
+lean-snippet --module My.Existing.Mod   # Converts My/Existing/Mod.lean
 ```
 
 ## Options
@@ -228,6 +251,7 @@ lean-snippet proof.lean
 | Flag                       | Description                                                                                                                              |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `-o NAME`, `--output NAME` | Base name for the output file (default: `lean-code`)                                                                                     |
+| `--module NAME`            | Highlight an existing project module (dotted name, e.g. `My.Mod`) in place, with its real imports — instead of copying a file into the scratch `Snippet` module. Ideal in host mode for rendering a project's own source as-is |
 | `link=URL`, `--link URL`         | Use code from a live.lean-lang.org share link (`link=-` reads stdin)          |
 | `--anchor NAME`            | Show only the `-- ANCHOR: NAME` … `-- ANCHOR_END: NAME` region                                                                           |
 | `--label TEXT`             | Caption shown in the snippet header (defaults to the anchor name)                                                                        |

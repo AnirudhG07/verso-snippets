@@ -12,29 +12,18 @@ name = "subverso"
 git = "https://github.com/leanprover/subverso.git"
 rev = "main"
 
-# The user's Lean code lives as the `Snippet` module. SubVerso's `:highlighted`
-# facet turns it into highlighted JSON without a Verso document.
 [[lean_lib]]
 name = "Snippet"
 
-# The renderer library (VersoSnippet.Render / .Literate / .Assets / .Page).
 [[lean_lib]]
 name = "VersoSnippet"
 globs = ["VersoSnippet.*"]
 
-# Reads the highlighted JSON and renders a self-contained HTML snippet using
-# Verso's own rendering library. Input-independent, so it is built once.
 [[lean_exe]]
 name = "render-snippet"
 root = "Main"
 
-# Decode a live.lean-lang.org share link (#code= / #codez= / #url=) to Lean
-# source. Used by `lean-snippet link=…`. A Lean port of the old decode-link.py.
+# Decode a live.lean-lang.org share link (#code= / #codez= / #url=) to Lean source. 
 [[lean_exe]]
 name = "decode-link"
 root = "VersoSnippet.DecodeLink"
-
-[[require]]
-name = "mathlib"
-scope = "leanprover-community"
-rev = "v4.31.0"

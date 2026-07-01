@@ -3,10 +3,13 @@
 #
 # Usage:
 #   lean-snippet [file.lean] [options]
+#   lean-snippet --module Some.Module [options]              (render an existing module)
 #   lean-snippet link="<live.lean-lang.org URL>" [options]   (or link=- to read stdin)
 #
 # Options:
 #   -o, --output NAME   Base name for the output file (default: lean-code)
+#   --module NAME       Highlight an existing module of the project by name (host mode;
+#                       its `#eval`/proof states use the project's own imports + Mathlib)
 #   --multi-blocks      One box per top-level command (default: a single box)
 #   --anchor NAME       Show only the region marked -- ANCHOR: NAME / -- ANCHOR_END: NAME
 #   --label TEXT        Caption above the snippet (defaults to the anchor name)
@@ -21,10 +24,18 @@
 #   --no-enhance        Skip GitHub colors + Copy / Try-it buttons
 #   --setup             First-time setup: build the renderer
 #
+# Two modes, auto-detected:
+#   • self mode  — run inside the verso-snippets repo. Snippets build against THIS repo's
+#                  deps (Std + Mathlib). The original behaviour.
+#   • host mode  — run inside another project that `require`s verso-snippets (so it has
+#                  `.lake/packages/verso-snippets`). Snippets build against the HOST project's
+#                  deps and modules, so code importing the host's own modules + Mathlib works.
+#                  See the README section "Use it in another project".
+#
 # Pipeline (all Lean / SubVerso — no Python, no HTML scraping):
-#   1. copy your file into the `Snippet` module
-#   2. `lake build Snippet:highlighted`  → SubVerso highlights it to JSON
-#   3. `render-snippet`                  → Verso renders the JSON to one HTML file
+#   1. copy your file into the project's `Snippet` module (or pick `--module NAME`)
+#   2. `lake build <Module>:highlighted`  → SubVerso highlights it to JSON
+#   3. `render-snippet`                   → Verso renders the JSON to one HTML file
 #
 # Install (run once):
 #   ln -s /path/to/snippets/lean-snippet ~/bin/lean-snippet
@@ -40,6 +51,7 @@ USER_CWD="$(pwd)"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 SCRATCH=""
+MODULE=""
 LINK=""
 BASE="lean-code"
 MULTI_BLOCKS=""
@@ -56,6 +68,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --setup)         SETUP=true; shift ;;
     -o|--output)     BASE="$2"; shift 2 ;;
+    --module)        MODULE="$2"; shift 2 ;;
     --multi-blocks)  MULTI_BLOCKS="--multi-blocks"; shift ;;
     --no-enhance)    NO_ENHANCE="--no-enhance"; shift ;;
     --no-output)     NO_OUTPUT="--no-output"; shift ;;
@@ -73,6 +86,38 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# ── Resolve self vs host mode ─────────────────────────────────────────────────
+# Walk up from the current directory to the nearest Lake project root.
+find_project_root() {
+  local d="$1"
+  while [[ "$d" != / ]]; do
+    if [[ -f "$d/lakefile.toml" || -f "$d/lakefile.lean" ]]; then echo "$d"; return 0; fi
+    d="$(dirname "$d")"
+  done
+  return 1
+}
+PROJECT_ROOT="$(find_project_root "$USER_CWD" || true)"
+
+# host mode: we're inside another project that has verso-snippets as a dependency.
+# Otherwise self mode: build inside the verso-snippets checkout itself.
+MODE="self"
+BUILD_ROOT="$SNIPPETS_HOME"            # where `lake build` runs (owns the deps + Mathlib)
+DEP_HOME="$SNIPPETS_HOME"              # where the renderer package + its binaries live
+if [[ -n "$PROJECT_ROOT" ]]; then
+  PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
+  if [[ "$PROJECT_ROOT" != "$SNIPPETS_HOME" && -d "$PROJECT_ROOT/.lake/packages/verso-snippets" ]]; then
+    MODE="host"
+    BUILD_ROOT="$PROJECT_ROOT"
+    DEP_HOME="$PROJECT_ROOT/.lake/packages/verso-snippets"
+  fi
+fi
+RENDER_BIN="$DEP_HOME/.lake/build/bin/render-snippet"
+DECODE_BIN="$DEP_HOME/.lake/build/bin/decode-link"
+
+# Build a target, qualifying it with the package name when in host mode so Lake
+# builds the dependency's executable (not a same-named target of the host).
+dep_target() { if [[ "$MODE" == host ]]; then echo "verso-snippets/$1"; else echo "$1"; fi; }
+
 # Run a build step quietly; print full output and abort only on failure.
 build_step() {
   local out rc
@@ -89,10 +134,10 @@ build_step() {
 
 # ── Setup mode ────────────────────────────────────────────────────────────────
 if $SETUP; then
-  echo "lean-snippet: setting up in $SNIPPETS_HOME ..."
-  cd "$SNIPPETS_HOME"
-  build_step render-snippet
-  build_step decode-link
+  echo "lean-snippet: setting up ($MODE mode) in $BUILD_ROOT ..."
+  cd "$BUILD_ROOT"
+  build_step "$(dep_target render-snippet)"
+  build_step "$(dep_target decode-link)"
   echo "Setup complete. Run: lean-snippet your-file.lean"
   exit 0
 fi
@@ -101,39 +146,53 @@ fi
 # `link=<url>` (or `--link <url>`, or `link=-` for stdin) pulls the code from a
 # live.lean-lang.org share link and uses that as the input.
 if [[ -n "$LINK" ]]; then
+  [[ -x "$DECODE_BIN" ]] || { cd "$BUILD_ROOT"; build_step "$(dep_target decode-link)"; }
   DECODED="${TMPDIR:-/tmp}/lean-snippet-link.lean"
-  "$SNIPPETS_HOME/.lake/build/bin/decode-link" "$LINK" > "$DECODED" \
+  "$DECODE_BIN" "$LINK" > "$DECODED" \
     || { echo "Error: could not decode link" >&2; exit 1; }
   SCRATCH="$DECODED"
 fi
-if [[ -z "$SCRATCH" ]]; then
-  if [[ -f "$USER_CWD/scratch.lean" ]]; then
-    SCRATCH="$USER_CWD/scratch.lean"
-  else
-    SCRATCH="$SNIPPETS_HOME/scratch.lean"
+
+cd "$BUILD_ROOT"
+
+# ── 1. Choose what to highlight: an existing module, or the `Snippet` scratch ──
+echo "lean-snippet: building renderer ($MODE mode) ..."
+build_step "$(dep_target render-snippet)"
+
+if [[ -n "$MODULE" ]]; then
+  # Highlight an existing module of the project, in place (no scratch copy).
+  HL_NAME="$MODULE"
+  echo "lean-snippet: highlighting module $MODULE ..."
+else
+  # Place the user's code as the project's `Snippet` module and highlight that.
+  if [[ -z "$SCRATCH" ]]; then
+    if   [[ -f "$USER_CWD/scratch.lean"   ]]; then SCRATCH="$USER_CWD/scratch.lean"
+    elif [[ -f "$BUILD_ROOT/scratch.lean" ]]; then SCRATCH="$BUILD_ROOT/scratch.lean"
+    else SCRATCH="$SNIPPETS_HOME/scratch.lean"; fi
   fi
+  [[ "$SCRATCH" != /* ]] && SCRATCH="$USER_CWD/$SCRATCH"
+  [[ -f "$SCRATCH" ]] || { echo "Error: file not found: $SCRATCH" >&2; exit 1; }
+  if [[ "$MODE" == host && ! -f "$BUILD_ROOT/Snippet.lean" && ! -d "$BUILD_ROOT/Snippet" ]]; then
+    # The host lakefile must declare a `lean_lib Snippet` (root Snippet.lean) for
+    # the `:highlighted` facet to apply. Warn once with the exact stanza.
+    echo "Note: writing $BUILD_ROOT/Snippet.lean — ensure your lakefile declares:" >&2
+    echo "      [[lean_lib]]"  >&2
+    echo '      name = "Snippet"' >&2
+  fi
+  cp "$SCRATCH" "$BUILD_ROOT/Snippet.lean"
+  HL_NAME="Snippet"
+  echo "lean-snippet: highlighting $SCRATCH ..."
 fi
-[[ "$SCRATCH" != /* ]] && SCRATCH="$USER_CWD/$SCRATCH"
-[[ -f "$SCRATCH" ]] || { echo "Error: file not found: $SCRATCH" >&2; exit 1; }
 
-cd "$SNIPPETS_HOME"
-
-# ── 1. Place the user's code as the `Snippet` module ──────────────────────────
-cp "$SCRATCH" Snippet.lean
-
-# ── 2. Build the renderer (cached) and highlight the module to JSON ───────────
-echo "lean-snippet: building renderer ..."
-build_step render-snippet
-
-echo "lean-snippet: highlighting $SCRATCH ..."
-build_step Snippet:highlighted
-HL_JSON=".lake/build/highlighted/Snippet.json"
-[[ -f "$HL_JSON" ]] || { echo "Error: highlight step produced no JSON" >&2; exit 1; }
+# ── 2. Highlight the module to JSON (SubVerso `:highlighted` facet) ────────────
+build_step "${HL_NAME}:highlighted"
+# The facet writes to <buildDir>/highlighted/<module path>.json (dots → dirs).
+HL_JSON="$BUILD_ROOT/.lake/build/highlighted/${HL_NAME//.//}.json"
+[[ -f "$HL_JSON" ]] || { echo "Error: highlight step produced no JSON at $HL_JSON" >&2; exit 1; }
 
 # ── 3. Render the JSON to a single self-contained HTML file ───────────────────
 echo "lean-snippet: rendering ..."
-OUT="${BASE}.html"
-.lake/build/bin/render-snippet "$HL_JSON" "$SNIPPETS_HOME/$OUT" $NO_SWITCHER $MULTI_BLOCKS $NO_ENHANCE $NO_OUTPUT $LITERATE $INFOVIEW $ANCHOR "${LABEL[@]}"
-[[ "$SNIPPETS_HOME/$OUT" != "$USER_CWD/$OUT" ]] && cp "$SNIPPETS_HOME/$OUT" "$USER_CWD/$OUT"
-echo "  → $USER_CWD/$OUT"
+OUT="$USER_CWD/${BASE}.html"
+"$RENDER_BIN" "$HL_JSON" "$OUT" $NO_SWITCHER $MULTI_BLOCKS $NO_ENHANCE $NO_OUTPUT $LITERATE $INFOVIEW $ANCHOR "${LABEL[@]}"
+echo "  → $OUT"
 echo "lean-snippet: done!"
