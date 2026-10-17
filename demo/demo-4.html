@@ -45,6 +45,21 @@ body { background:#fff; color:#222; max-width:880px; margin:0 auto; padding:1rem
   font-family: var(--verso-code-font-family,);
 }
 
+/* These lexically-classified token kinds default to the `.unknown` appearance. The rule follows
+   `.const` so it wins for the `anon-ctor` tokens, which also carry the `const` class. */
+.hl.lean .anon-ctor,
+.hl.lean .number,
+.hl.lean .char,
+.hl.lean .comment,
+.hl.lean .punctuation,
+.hl.lean .delim,
+.hl.lean .wildcard {
+  color: var(--verso-code-color,);
+  font-weight: normal;
+  font-style: normal;
+  font-family: var(--verso-code-font-family,);
+}
+
 .hover-container {
   width: 0;
   height: 0;
@@ -127,7 +142,7 @@ body { background:#fff; color:#222; max-width:880px; margin:0 auto; padding:1rem
 }
 
 @media (hover: hover) {
-  .hl.lean .token.binding-hl, .hl.lean .literal.string:hover, .hl.lean .token.typed:hover {
+  .hl.lean .token.binding-hl, .hl.lean .literal:hover, .hl.lean .token.typed:hover {
     background-color: #eee;
     border-radius: 2px;
     transition: none;
@@ -307,7 +322,7 @@ body { background:#fff; color:#222; max-width:880px; margin:0 auto; padding:1rem
   text-size-adjust: 100%;
 }
 
-.hl.lean .tactic:has(.tactic-toggle:checked) {
+.hl.lean .tactic:has(> .tactic-toggle:checked) {
   display: inline-grid;
   grid-template-columns: 1fr;
 }
@@ -326,7 +341,10 @@ body { background:#fff; color:#222; max-width:880px; margin:0 auto; padding:1rem
 }
 
 @media (hover: hover) {
-  .hl.lean .tactic:has(.tactic-toggle:not(:checked)) > label:hover {
+  /* Highlight a region on hover only when its own toggle is unchecked, and only the innermost
+     hovered region: `label:hover` bubbles to ancestor labels, so suppress the highlight on a region
+     whose label contains a more deeply nested hovered tactic label. */
+  .hl.lean .tactic:has(> .tactic-toggle:not(:checked)) > label:hover:not(:has(.tactic > label:hover)) {
     background-color: #eeeeee;
   }
 }
@@ -693,6 +711,29 @@ Some CSS frameworks customize details/summary in ways not compatible with Verso'
   align-items: center;
   gap: 8px;
 }
+/* Left side of the bar: the label, then the attribution credit. */
+.snippet-left {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+/* With no label the title span collapses, so the credit sits at the bar's left edge. */
+.snippet-title:empty { display: none; }
+.snippet-credit {
+  font-size: 1rem;
+  color: #57606a;
+  white-space: nowrap;
+  position: relative;
+  top: 2px;
+  margin-left: -4px;
+}
+.snippet-credit a {
+  color: #0969da;
+  font-weight: 500;
+  text-decoration: none;
+}
+.snippet-credit a:hover { text-decoration: underline; }
 /* The code box joins the header below it: flat top corners, no gap. */
 .snippet-header + code.hl.lean.block {
   margin-top: 0;
@@ -1101,7 +1142,7 @@ body:not(.slide) .snippet-layout > .lean-snippet > code.hl.lean.block {
 <body class="mode-hover lit-view slide slide-both">
 <div class="snippet-layout">
 <div class="lean-snippet">
-<div class="snippet-header"><span class="snippet-title"></span><span class="snippet-actions"><details class="mode-switch"><summary>View</summary><div class="mode-menu"><label><input type="checkbox" class="mode-cb" value="hover" checked> Hover</label><label><input type="checkbox" class="mode-cb" value="slide" checked> Infoview</label><label><input type="checkbox" class="mode-cb" value="literate" checked> Literate</label></div></details></span></div>
+<div class="snippet-header"><span class="snippet-left"><span class="snippet-title"></span><span class="snippet-credit">made with <a href="https://github.com/AnirudhG07/verso-snippets" target="_blank" rel="noopener">verso-snippets</a></span></span><span class="snippet-actions"><details class="mode-switch"><summary>View</summary><div class="mode-menu"><label><input type="checkbox" class="mode-cb" value="hover" checked> Hover</label><label><input type="checkbox" class="mode-cb" value="slide" checked> Infoview</label><label><input type="checkbox" class="mode-cb" value="literate" checked> Literate</label></div></details></span></div>
 <code class="hl lean block" data-lean-context="snippet"><span class="inter-text">/-!
 # Fibonacci, literately
 
@@ -1115,17 +1156,17 @@ $$F_n = F_{n-1} + F_{n-2}, \qquad F_0 = 0,\ F_1 = 1.$$
 Here is a direct, structurally-recursive definition:
 -/
 
-</span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-323">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="1">Nat</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="1">Nat</span><span class="inter-text">
-  </span><span class="unknown token" data-binding="">|</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="2">0</span><span class="inter-text">     </span><span class="unknown token" data-binding="">=&gt;</span><span class="inter-text"> </span><span class="unknown token" data-binding="">0</span><span class="inter-text">
-  </span><span class="unknown token" data-binding="">|</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="2">1</span><span class="inter-text">     </span><span class="unknown token" data-binding="">=&gt;</span><span class="inter-text"> </span><span class="unknown token" data-binding="">1</span><span class="inter-text">
-  </span><span class="unknown token" data-binding="">|</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">+</span><span class="inter-text"> </span><span class="unknown token" data-binding="">2</span><span class="inter-text"> </span><span class="unknown token" data-binding="">=&gt;</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">+</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="unknown token" data-binding="">(</span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">+</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="2">1</span><span class="unknown token" data-binding="">)</span><span class="inter-text">
+</span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-323">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.typeSpec-331">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="1">Nat</span><span class="inter-text"> </span><span class="punctuation operator token" data-binding="kw-occ-Lean.Parser.Term.arrow-333">→</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="1">Nat</span><span class="inter-text">
+  </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">|</span><span class="inter-text"> </span><span class="literal number token" data-binding="" data-verso-hover="2">0</span><span class="inter-text">     </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">=&gt;</span><span class="inter-text"> </span><span class="literal number token" data-binding="">0</span><span class="inter-text">
+  </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">|</span><span class="inter-text"> </span><span class="literal number token" data-binding="" data-verso-hover="2">1</span><span class="inter-text">     </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">=&gt;</span><span class="inter-text"> </span><span class="literal number token" data-binding="">1</span><span class="inter-text">
+  </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">|</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="punctuation operator token" data-binding="kw-occ-«term_+_»-379">+</span><span class="inter-text"> </span><span class="literal number token" data-binding="">2</span><span class="inter-text"> </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">=&gt;</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="punctuation operator token" data-binding="kw-occ-«term_+_»-388">+</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="punctuation bracket token" data-binding="kw-occ-Lean.Parser.Term.hygienicLParen-400">(</span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="punctuation operator token" data-binding="kw-occ-«term_+_»-401">+</span><span class="inter-text"> </span><span class="literal number token" data-binding="" data-verso-hover="2">1</span><span class="punctuation bracket token" data-binding="kw-occ-Lean.Parser.Term.paren-400">)</span><span class="inter-text">
 
 /-!
 Lean accepts that this terminates (the arguments shrink), so we can just
 evaluate it. For example $F_{10} = 55$:
 -/
 
-</span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.eval-530" data-verso-hover="3">#eval</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="2">10</span><span class="inter-text">
+</span><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.eval-530" data-verso-hover="3">#eval</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="literal number token" data-binding="" data-verso-hover="2">10</span><span class="inter-text">
 </span><span class="verso-message information"><span class="text"></span><span class="text">55</span></span><span class="unknown token" data-binding=""></span></code>
 <div class="snippet-content literate">
 <div class="prose">
@@ -1145,10 +1186,10 @@ evaluate it. For example $F_{10} = 55$:
 
 
 </div>
-<code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-323">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="unknown token" data-binding="">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="1">Nat</span><span class="inter-text"> </span><span class="unknown token" data-binding="">→</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="1">Nat</span><span class="inter-text">
-  </span><span class="unknown token" data-binding="">|</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="2">0</span><span class="inter-text">     </span><span class="unknown token" data-binding="">=&gt;</span><span class="inter-text"> </span><span class="unknown token" data-binding="">0</span><span class="inter-text">
-  </span><span class="unknown token" data-binding="">|</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="2">1</span><span class="inter-text">     </span><span class="unknown token" data-binding="">=&gt;</span><span class="inter-text"> </span><span class="unknown token" data-binding="">1</span><span class="inter-text">
-  </span><span class="unknown token" data-binding="">|</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">+</span><span class="inter-text"> </span><span class="unknown token" data-binding="">2</span><span class="inter-text"> </span><span class="unknown token" data-binding="">=&gt;</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">+</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="unknown token" data-binding="">(</span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="unknown token" data-binding="">+</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="2">1</span><span class="unknown token" data-binding="">)</span></code>
+<code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.definition-323">def</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.typeSpec-331">:</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="1">Nat</span><span class="inter-text"> </span><span class="punctuation operator token" data-binding="kw-occ-Lean.Parser.Term.arrow-333">→</span><span class="inter-text"> </span><span class="const token" data-binding="const-Nat" data-verso-hover="1">Nat</span><span class="inter-text">
+  </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">|</span><span class="inter-text"> </span><span class="literal number token" data-binding="" data-verso-hover="2">0</span><span class="inter-text">     </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">=&gt;</span><span class="inter-text"> </span><span class="literal number token" data-binding="">0</span><span class="inter-text">
+  </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">|</span><span class="inter-text"> </span><span class="literal number token" data-binding="" data-verso-hover="2">1</span><span class="inter-text">     </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">=&gt;</span><span class="inter-text"> </span><span class="literal number token" data-binding="">1</span><span class="inter-text">
+  </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">|</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="punctuation operator token" data-binding="kw-occ-«term_+_»-379">+</span><span class="inter-text"> </span><span class="literal number token" data-binding="">2</span><span class="inter-text"> </span><span class="built-in delim token" data-binding="kw-occ-Lean.Parser.Term.matchAlts-347">=&gt;</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="punctuation operator token" data-binding="kw-occ-«term_+_»-388">+</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="punctuation bracket token" data-binding="kw-occ-Lean.Parser.Term.hygienicLParen-400">(</span><span class="var token" data-binding="var-_uniq.119" data-verso-hover="2">n</span><span class="inter-text"> </span><span class="punctuation operator token" data-binding="kw-occ-«term_+_»-401">+</span><span class="inter-text"> </span><span class="literal number token" data-binding="" data-verso-hover="2">1</span><span class="punctuation bracket token" data-binding="kw-occ-Lean.Parser.Term.paren-400">)</span></code>
 <div class="prose">
 <p>
   Lean accepts that this terminates (the arguments shrink), so we can just
@@ -1156,7 +1197,7 @@ evaluate it. For example <code class="math inline">F_{10} = 55</code>:</p>
 
 
 </div>
-<code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.eval-530" data-verso-hover="3">#eval</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="typed token" data-binding="" data-verso-hover="2">10</span><span class="verso-message information"><span class="text"></span><span class="text">55</span></span></code>
+<code class="hl lean block" data-lean-context="snippet"><span class="keyword token" data-binding="kw-occ-Lean.Parser.Command.eval-530" data-verso-hover="3">#eval</span><span class="inter-text"> </span><span class="const token" data-binding="const-fib" data-verso-hover="0">fib</span><span class="inter-text"> </span><span class="literal number token" data-binding="" data-verso-hover="2">10</span><span class="verso-message information"><span class="text"></span><span class="text">55</span></span></code>
 </div>
 </div>
 <div class="info-panel-cell"><aside class="info-panel"></aside></div>
@@ -1192,7 +1233,7 @@ window.onload = () => {
       let parent = elem.parentNode;
       while (parent && "classList" in parent) {
         if (parent.classList.contains("tactic")) {
-          const toggle = parent.querySelector("input.tactic-toggle");
+          const toggle = parent.querySelector(":scope > input.tactic-toggle");
           if (toggle) {
             return !toggle.checked;
           }
@@ -1289,7 +1330,7 @@ window.onload = () => {
         followCursor: 'initial',
         onShow(inst) {
           if (inst.reference.className == 'tactic') {
-            const toggle = inst.reference.querySelector("input.tactic-toggle");
+            const toggle = inst.reference.querySelector(":scope > input.tactic-toggle");
             if (toggle && toggle.checked) {
               return false;
             }
@@ -1308,7 +1349,7 @@ window.onload = () => {
         content (tgt) {
           const content = document.createElement("span");
           if (tgt.className == 'tactic') {
-            const state = tgt.querySelector(".tactic-state").cloneNode(true);
+            const state = tgt.querySelector(":scope > .tactic-state").cloneNode(true);
             state.style.display = "block";
             content.appendChild(state);
             content.style.display = "block";
@@ -1387,7 +1428,7 @@ window.onload = () => {
       // Skip tokens inside closed tactics — they interfere with tactic tippys
       const closedTactics = new Set();
       document.querySelectorAll('.hl.lean .tactic').forEach(tactic => {
-        const toggle = tactic.querySelector('input.tactic-toggle');
+        const toggle = tactic.querySelector(':scope > input.tactic-toggle');
         if (toggle && !toggle.checked) closedTactics.add(tactic);
       });
       function isInsideClosedTactic(el) {
@@ -1401,7 +1442,7 @@ window.onload = () => {
       // Create/destroy token tippys when tactic checkbox toggles
       const tacticTippySelector = '.const.token, .keyword.token, .literal.token, .option.token, .var.token, .typed.token, .has-info, .level-var, .level-const, .level-op, .sort';
       document.querySelectorAll('.hl.lean .tactic').forEach(tactic => {
-        const toggle = tactic.querySelector('input.tactic-toggle');
+        const toggle = tactic.querySelector(':scope > input.tactic-toggle');
         if (toggle) toggle.addEventListener('change', () => {
           if (toggle.checked) {
             closedTactics.delete(tactic);

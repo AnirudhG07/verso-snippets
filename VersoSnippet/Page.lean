@@ -56,7 +56,8 @@ def page (blocks : String) (litBlocks : Option String) (docsJson : String) (enha
         cb "hover" "Hover" initHover ++ cb "slide" "Infoview" initSlide ++
         litItem ++ "</div></details>"
     let header :=
-      "<div class=\"snippet-header\"><span class=\"snippet-title\">" ++ titleText ++
+      "<div class=\"snippet-header\"><span class=\"snippet-left\"><span class=\"snippet-title\">" ++
+        titleText ++ "</span>" ++ creditHtml ++
         "</span><span class=\"snippet-actions\">" ++ dropdown ++ "</span></div>\n"
     -- Plain code blocks stay DIRECT children of `.lean-snippet` so the header/panel
     -- CSS (`.snippet-header + code`, `.lean-snippet > code`) keeps working; only the
@@ -95,7 +96,8 @@ def page (blocks : String) (litBlocks : Option String) (docsJson : String) (enha
       (if isSlide then "<body class=\"" ++ bodyClass ++ "\">\n" else "<body>\n")
     let headerHtml :=
       if enhance || label.isSome then
-        "<div class=\"snippet-header\"><span class=\"snippet-title\">" ++ titleText ++
+        "<div class=\"snippet-header\"><span class=\"snippet-left\"><span class=\"snippet-title\">" ++
+          titleText ++ "</span>" ++ creditHtml ++
           "</span><span class=\"snippet-actions\"></span></div>\n"
       else ""
     let snippet := "<div class=\"lean-snippet\">\n" ++ headerHtml ++ blocks ++ "\n</div>\n"

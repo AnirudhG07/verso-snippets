@@ -89,8 +89,9 @@ window.addEventListener('load', () => {
 });
 "
 
-/-- A permanent header bar above the code: the label (or empty) on the left,
-    the Copy / Try-it buttons on the right. -/
+/-- A permanent header bar above the code: the label (or empty) and the
+    "made with verso-snippets" credit on the left, the Copy / Try-it buttons on
+    the right. -/
 def labelCss : String := "
 .snippet-header {
   display: flex;
@@ -116,6 +117,29 @@ def labelCss : String := "
   align-items: center;
   gap: 8px;
 }
+/* Left side of the bar: the label, then the attribution credit. */
+.snippet-left {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+/* With no label the title span collapses, so the credit sits at the bar's left edge. */
+.snippet-title:empty { display: none; }
+.snippet-credit {
+  font-size: 1rem;
+  color: #57606a;
+  white-space: nowrap;
+  position: relative;
+  top: 2px;
+  margin-left: -4px;
+}
+.snippet-credit a {
+  color: #0969da;
+  font-weight: 500;
+  text-decoration: none;
+}
+.snippet-credit a:hover { text-decoration: underline; }
 /* The code box joins the header below it: flat top corners, no gap. */
 .snippet-header + code.hl.lean.block {
   margin-top: 0;
@@ -123,6 +147,12 @@ def labelCss : String := "
   border-top-right-radius: 0;
 }
 "
+
+/-- The "made with verso-snippets" attribution for the left of the header bar. -/
+def creditHtml : String :=
+  "<span class=\"snippet-credit\">made with " ++
+    "<a href=\"https://github.com/AnirudhG07/verso-snippets\" target=\"_blank\" " ++
+    "rel=\"noopener\">verso-snippets</a></span>"
 
 /-- HTML-escape the few characters that matter for a text label. -/
 def escapeLabel (s : String) : String :=
